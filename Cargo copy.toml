@@ -7,5 +7,6 @@ edition = "2021"
 
 [dependencies]
 rustfft = "6.1.0"
+plotters = "0.3.1"
 egui = "0.21.0"
 eframe = "0.21.3"
