@@ -65,7 +65,7 @@ impl InputSignal {
     }
     pub fn fft(&mut self) {
         for i in 0..self.complex.len() {
-            self.fftComplex[i] = self.complex[i];
+            self.fftComplex[i] = self.complex[i].clone();
         }
         let mut planner = FftPlanner::new();
         let fft = planner.plan_fft_forward(self.len.into());
