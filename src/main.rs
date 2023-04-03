@@ -37,7 +37,6 @@ fn main() -> Result<(), Box<dyn Error>> {
                     2000,
                     Some(0.01),
                 ),
-                10000,
             ),
         ))
     )?;

@@ -1,6 +1,10 @@
-use std::{sync::Arc, any::Any};
-
-use rustfft::{num_complex::{Complex, ComplexFloat}, FftPlanner, Fft, FftNum};
+use rustfft::{
+    num_complex::{
+        Complex, 
+        ComplexFloat
+    }, 
+    FftPlanner
+};
 
 pub const PI: f64 = std::f64::consts::PI;
 pub const PI2: f64 = PI * 2.0;

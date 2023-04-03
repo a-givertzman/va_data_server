@@ -1,26 +1,31 @@
-use egui::plot::{Plot, Points, PlotPoints};
-use rustfft::{FftPlanner, num_complex::Complex};
+use egui::plot::{
+    Plot, 
+    Points, 
+    PlotPoints
+};
 
-use crate::{sin_buf::{SinBuf, PI2}, input_signal::InputSignal};
+use crate::{
+    input_signal::InputSignal
+};
 
 
 
 pub struct UiApp {
     inputSig: InputSignal,
-    len: usize,
-    inBuff: SinBuf,
-    freqFactorStr: String,
+    // len: usize,
+    // inBuff: SinBuf,
+    // freqFactorStr: String,
 }
 
 impl UiApp {
-    pub fn new(inputSig: InputSignal, len: usize) -> Self {
-        let mut inBuff = SinBuf::new(len, 0.0, 1.0, Some(PI2 / (0.5 * (len as f64))));
-        prepareInBuffer(&mut inBuff, len);
+    pub fn new(inputSig: InputSignal) -> Self {
+        // let mut inBuff = SinBuf::new(len, 0.0, 1.0, Some(PI2 / (0.5 * (len as f64))));
+        // prepareInBuffer(&mut inBuff, len);
         Self {
             inputSig,
-            len,
-            inBuff,
-            freqFactorStr: String::from("2.0"),
+            // len,
+            // inBuff,
+            // freqFactorStr: String::from("2.0"),
         }
     }
 }
@@ -57,20 +62,6 @@ impl eframe::App for UiApp {
     }
 }
 
-fn prepareInBuffer(inBuff: &mut SinBuf, len: usize) {
-    for i in 0..len {
-        {
-            // println!("inBuf: {:?}", &inBuff.content);
-            
-            // let mut planner = FftPlanner::new();
-            // let fft = planner.plan_fft_forward(len.into());
-            
-            // outBuff = inBuff.content.clone();
-            // fft.process(&mut outBuff);
-        }  
-        inBuff.next();
-    }
-}
 
 
 // egui::Window::new("Main thread").show(ctx, |ui| {
