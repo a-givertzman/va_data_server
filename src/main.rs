@@ -2,6 +2,7 @@
 
 mod ui_app;
 mod sin_buf;
+mod input_signal;
 
 use std::{
     env,
@@ -10,6 +11,7 @@ use std::{
 };
 
 
+use input_signal::InputSignal;
 use ui_app::UiApp;
 
 
@@ -23,7 +25,20 @@ fn main() -> Result<(), Box<dyn Error>> {
         "Rpi-FFT-App", 
         native_options, 
         Box::new(|_| Box::new(
-            UiApp::new(10000),
+            UiApp::new(
+                InputSignal::new(
+                    100.0, 
+                    |t| {
+                        t.sin() 
+                        + 0.2 * (t * 10.0).sin() 
+                        + 0.2 * (t * 5.0).sin()
+                        + 0.2 * (t * 500.0).sin()
+                    },
+                    2000,
+                    Some(0.01),
+                ),
+                10000,
+            ),
         ))
     )?;
     Ok(())
