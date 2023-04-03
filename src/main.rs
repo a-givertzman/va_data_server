@@ -27,15 +27,15 @@ fn main() -> Result<(), Box<dyn Error>> {
         Box::new(|_| Box::new(
             UiApp::new(
                 InputSignal::new(
-                    100.0, 
+                    1000.0, 
                     |t| {
                         t.sin() 
                         + 0.2 * (t * 10.0).sin() 
-                        + 0.2 * (t * 5.0).sin()
-                        + 0.2 * (t * 500.0).sin()
+                        + 0.2 * (t * 0.1).sin()
+                        + 0.2 * (t * 50.0).sin()
                     },
-                    2000,
-                    Some(0.01),
+                    10000,
+                    Some(0.0001),
                 ),
             ),
         ))
