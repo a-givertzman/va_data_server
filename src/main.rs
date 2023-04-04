@@ -1,7 +1,6 @@
 #![allow(non_snake_case)]
 
 mod ui_app;
-mod sin_buf;
 mod input_signal;
 
 use std::{
