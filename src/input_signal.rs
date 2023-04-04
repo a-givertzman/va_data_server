@@ -89,7 +89,7 @@ impl InputSignal {
         
                 let re = input * (PI2ft).cos();
                 let im = input * (PI2ft).sin();
-                self.complex0Current = vec![[0.0, 0.0], [re as f64, im as f64]];
+                self.complexCurrent = vec![[0.0, 0.0], [re as f64, im as f64]];
                 self.complex.push(Complex{ re, im });
                 if self.t.len() > self.len {
                     self.t.remove(0);
