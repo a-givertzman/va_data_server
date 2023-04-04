@@ -14,9 +14,6 @@ use crate::{
 
 pub struct UiApp {
     pub inputSig: Arc<Mutex<InputSignal>>,
-    // len: usize,
-    // inBuff: SinBuf,
-    // freqFactorStr: String,
 }
 
 impl UiApp {
