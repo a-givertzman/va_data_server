@@ -1,8 +1,10 @@
-use egui::plot::{
+use std::sync::Arc;
+
+use egui::{plot::{
     Plot, 
     Points, 
-    PlotPoints
-};
+    PlotPoints, Line
+}, Color32, mutex::Mutex};
 
 use crate::{
     input_signal::InputSignal
@@ -11,7 +13,7 @@ use crate::{
 
 
 pub struct UiApp {
-    inputSig: InputSignal,
+    pub inputSig: Arc<Mutex<InputSignal>>,
     // len: usize,
     // inBuff: SinBuf,
     // freqFactorStr: String,
@@ -19,13 +21,8 @@ pub struct UiApp {
 
 impl UiApp {
     pub fn new(inputSig: InputSignal) -> Self {
-        // let mut inBuff = SinBuf::new(len, 0.0, 1.0, Some(PI2 / (0.5 * (len as f64))));
-        // prepareInBuffer(&mut inBuff, len);
         Self {
-            inputSig,
-            // len,
-            // inBuff,
-            // freqFactorStr: String::from("2.0"),
+            inputSig: Arc::new(Mutex::new(inputSig)) ,
         }
     }
 }
@@ -33,32 +30,56 @@ impl UiApp {
 impl eframe::App for UiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
 
-        self.inputSig.next();
-        egui::Window::new("new input").show(ctx, |ui| {
-            ui.label(format!("new input: '{}'", 0));
+        let inputSig = self.inputSig.lock();
+
+        egui::Window::new("complex 0").show(ctx, |ui| {
+            // ui.label(format!("complex 0: '{}'", 0));
+            ui.label(format!(" pfi: '{:?}'", inputSig.phi));
+            ui.end_row();
             if ui.button("just button").clicked() {
             }
-            Plot::new("new input").show(ui, |plotUi| {
+            Plot::new("complex 0")
+            .show(ui, |plotUi| {
                 plotUi.points(
                     Points::new(PlotPoints::new(
-                        self.inputSig.xyPoints(),
+                        inputSig.complex0Points(),
+                    )).color(Color32::BLUE),
+                );
+                plotUi.line(
+                    Line::new(
+                        inputSig.complex0Current.clone(),
+                    )
+                    .color(Color32::YELLOW),
+                )
+            });
+        });
+        egui::Window::new("input").show(ctx, |ui| {
+            // ui.label(format!("input: '{}'", 0));
+            ui.label(format!(" t: '{:?}'", inputSig.t.back().unwrap()));
+            ui.end_row();
+            if ui.button("just button").clicked() {
+            }
+            Plot::new("input").show(ui, |plotUi| {
+                plotUi.points(
+                    Points::new(PlotPoints::new(
+                        inputSig.xyPoints.clone(),
                     )),
                 )
             });
         });
-        self.inputSig.fft();
-        egui::Window::new("new fft").show(ctx, |ui| {
-            ui.label(format!("new fft: '{}'", 0));
+        egui::Window::new("fft").show(ctx, |ui| {
+            // ui.label(format!("new fft: '{}'", 0));
             if ui.button("just button").clicked() {
             }
-            Plot::new("new fft").show(ui, |plotUi| {
-                plotUi.points(
-                    Points::new(PlotPoints::new(
-                        self.inputSig.fftPoints(),
-                    )),
+            Plot::new("fft").show(ui, |plotUi| {
+                plotUi.line(
+                    Line::new(PlotPoints::new(
+                        inputSig.fftPoints(),
+                    )).color(Color32::LIGHT_GREEN),
                 )
             });
         });
+        ctx.request_repaint();
     }
 }
 
