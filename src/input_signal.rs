@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+#![allow(non_snake_case)]
 
 use rustfft::{
     num_complex::{
@@ -12,15 +12,15 @@ pub const PI: f32 = std::f32::consts::PI;
 pub const PI2: f32 = PI * 2.0;
 
 
-type Callback = fn(t: f32, f: f32) -> f32;
+type BuilderCallback = fn(t: f32, f: f32) -> f32;
 
 pub struct InputSignal {
-    f: f32,
-    period: f32,
-    builder: Callback,
+    pub f: f32,
+    pub period: f32,
+    builder: BuilderCallback,
     len: usize,
     step: f32,
-    pub t: VecDeque<f32>,
+    pub t: Vec<f32>,
     pub origin: Vec<f32>,
     pub complex0: Vec<Complex<f32>>,
     pub complex0Current: Vec<[f64; 2]>,
@@ -29,10 +29,11 @@ pub struct InputSignal {
     pub fftScalar: Vec<f32>,
     pub phi: f32,
     pub xyPoints: Vec<[f64; 2]>,
+    inputFilter: LowPassFilter,
 }
 impl InputSignal {
     ///
-    pub fn new(f: f32, builder: Callback, len: usize, step: Option<f32>) -> Self {
+    pub fn new(f: f32, builder: BuilderCallback, len: usize, step: Option<f32>) -> Self {
         let period = 1.0 / f;
         let delta = period / (len as f32);
         println!("f: {:?} Hz", f);
@@ -46,9 +47,9 @@ impl InputSignal {
             len: len,
             step: match step {
                 Some(value) => value,
-                None => delta, // PI2 / (len as f32),
+                None => delta,
             },
-            t: VecDeque::from([0.0]),
+            t: Vec::from([0.0]),
             origin: vec![0.0],
             complex0: vec![Complex{re: 0.0, im: 0.0}],
             complex0Current: vec![[0.0, 0.0], [0.0, 0.0]],
@@ -56,18 +57,21 @@ impl InputSignal {
             fftComplex: vec![Complex{re: 0.0, im: 0.0}; len],
             fftScalar: vec![0.0; len],
             phi: 0.0,
-            xyPoints: vec![[0.0, 0.0]; len],
+            xyPoints: vec![[0.0, 0.0]],
+            inputFilter: LowPassFilter::new(2),
         }
     }
     ///
     pub fn next(&mut self) {
-        match self.t.back() {
+        match self.t.last() {
             Some(tOld) => {
                 let t = tOld + self.step;
 
-                self.t.push_back(t);
-        
-                let input = (self.builder)(t, self.f);
+                self.t.push(t);
+                
+                let rawInput = (self.builder)(t, self.f);
+                self.inputFilter.add(rawInput);
+                let input = self.inputFilter.value();
                 self.origin.push(input);
                 self.xyPoints.push([t as f64, input as f64]);
         
@@ -82,7 +86,7 @@ impl InputSignal {
                 let complex = Complex{ re, im };
                 self.complex.push(complex);
                 if self.t.len() > self.len {
-                    self.t.pop_front();
+                    self.t.remove(0);
                     self.xyPoints.remove(0);
                     self.origin.remove(0);
                     self.complex.remove(0);
@@ -114,12 +118,42 @@ impl InputSignal {
     ///
     pub fn fftPoints(&self) -> Vec<[f64; 2]> {
         let mut points: Vec<[f64; 2]> = vec![];
+        let factor = 1.0 / ((self.len / 2) as f32);
         for i in 0..self.t.len() / 2 {
             let x = i as f64;
-            let y = (self.fftComplex[i].abs() / 2048.0) as f64;
+            let y = (self.fftComplex[i].abs() * factor) as f64;
             points.push([x, 0.0]);
             points.push([x, y]);
         }
         points
     }    
+}
+
+
+
+
+struct LowPassFilter {
+    len: usize,
+    values: Vec<f32>,
+}
+
+impl LowPassFilter {
+    ///
+    pub fn new(len: usize) -> Self {
+        Self {
+            len,
+            values: vec![0.0; len],
+        }
+    }
+    ///
+    pub fn add(&mut self, value: f32) {
+        self.values.push(value);
+        if self.values.len() > self.len {
+            self.values.remove(0);
+        }
+    }
+    ///
+    pub fn value(&self) -> f32 {
+        self.values.iter().sum::<f32>() / (self.len as f32)
+    }
 }

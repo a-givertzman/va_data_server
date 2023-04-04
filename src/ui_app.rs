@@ -1,3 +1,5 @@
+#![allow(non_snake_case)]
+
 use std::sync::{
     Arc, 
     // Mutex
@@ -14,7 +16,7 @@ use egui::{
 };
 
 use crate::{
-    input_signal::InputSignal
+    input_signal::{InputSignal, PI}
 };
 
 
@@ -38,7 +40,8 @@ impl eframe::App for UiApp {
 
         egui::Window::new("complex 0").show(ctx, |ui| {
             // ui.label(format!("complex 0: '{}'", 0));
-            ui.label(format!(" pfi: '{:?}'", inputSig.phi));
+            ui.label(format!(" f: {:?} Hz   T: {:?} sec", inputSig.f, inputSig.period));
+            ui.label(format!(" pfi: {:?}", inputSig.phi * 180.0 / PI));
             ui.end_row();
             if ui.button("just button").clicked() {
             }
@@ -58,9 +61,10 @@ impl eframe::App for UiApp {
             });
         });
         egui::Window::new("input").show(ctx, |ui| {
-            // ui.label(format!("input: '{}'", 0));
-            ui.label(format!(" t: '{:?}'", inputSig.t.back().unwrap()));
-            ui.end_row();
+            ui.label(format!(" t: {:?}", inputSig.t.last().unwrap()));
+            ui.label(format!("origin length: {}", inputSig.origin.len()));
+            ui.label(format!("xyPoints length: {}", inputSig.xyPoints.len()));
+            // ui.end_row();
             if ui.button("just button").clicked() {
             }
             Plot::new("input").show(ui, |plotUi| {
