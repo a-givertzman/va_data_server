@@ -1,10 +1,17 @@
-use std::sync::Arc;
+use std::sync::{
+    Arc, 
+    // Mutex
+};
 
-use egui::{plot::{
-    Plot, 
-    Points, 
-    PlotPoints, Line
-}, Color32, mutex::Mutex};
+use egui::{
+    plot::{
+        Plot, 
+        Points, 
+        PlotPoints, Line
+    }, 
+    Color32, 
+    mutex::Mutex,
+};
 
 use crate::{
     input_signal::InputSignal

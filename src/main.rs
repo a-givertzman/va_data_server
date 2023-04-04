@@ -32,12 +32,11 @@ fn main() -> Result<(), Box<dyn Error>> {
             None, // Some(0.0001),
         ),
     );
-
-    let inputSig = uiApp.inputSig.clone();
+    let inputSignal = uiApp.inputSig.clone();
     thread::Builder::new().name("ffi process".to_string()).spawn(move || {
         loop {
-            inputSig.lock().next();
-            inputSig.lock().fftProcess();
+            inputSignal.lock().next();
+            inputSignal.lock().fftProcess();
         }
     })?;
 
@@ -45,13 +44,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     let native_options = eframe::NativeOptions {
         initial_window_size: Some(egui::Vec2 { x: 1024.0, y: 768.0 }),
         ..Default::default()
-    };
+    };    
     eframe::run_native(
         "Rpi-FFT-App", 
         native_options, 
         Box::new(|_| Box::new(
             uiApp,
-        ))
-    )?;
+        ))    
+    )?;    
+
     Ok(())
 }
