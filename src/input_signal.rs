@@ -25,6 +25,7 @@ pub struct InputSignal {
     pub complex0: Vec<Complex<f32>>,
     pub complex0Current: Vec<[f64; 2]>,
     pub complex: Vec<Complex<f32>>,
+    pub complexCurrent: Vec<[f64; 2]>,
     pub fftComplex: Vec<Complex<f32>>,
     pub fftScalar: Vec<f32>,
     pub phi: f32,
@@ -54,6 +55,7 @@ impl InputSignal {
             complex0: vec![Complex{re: 0.0, im: 0.0}],
             complex0Current: vec![[0.0, 0.0], [0.0, 0.0]],
             complex: vec![Complex{re: 0.0, im: 0.0}],
+            complexCurrent: vec![[0.0, 0.0], [0.0, 0.0]],
             fftComplex: vec![Complex{re: 0.0, im: 0.0}; len],
             fftScalar: vec![0.0; len],
             phi: 0.0,
@@ -87,8 +89,8 @@ impl InputSignal {
         
                 let re = input * (PI2ft).cos();
                 let im = input * (PI2ft).sin();
-                let complex = Complex{ re, im };
-                self.complex.push(complex);
+                self.complex0Current = vec![[0.0, 0.0], [re as f64, im as f64]];
+                self.complex.push(Complex{ re, im });
                 if self.t.len() > self.len {
                     self.t.remove(0);
                     self.xyPoints.remove(0);
@@ -115,6 +117,16 @@ impl InputSignal {
         for i in 0..self.t.len() {
             let x = self.complex0[i].re as f64;
             let y = self.complex0[i].im as f64;
+            points.push([x, y]);
+        }
+        points
+    }    
+    ///
+    pub fn complexPoints(&self) -> Vec<[f64; 2]> {
+        let mut points: Vec<[f64; 2]> = vec![];
+        for i in 0..self.t.len() {
+            let x = self.complex[i].re as f64;
+            let y = self.complex[i].im as f64;
             points.push([x, y]);
         }
         points

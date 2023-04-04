@@ -60,6 +60,28 @@ impl eframe::App for UiApp {
                 )
             });
         });
+        egui::Window::new("input complex").show(ctx, |ui| {
+            // ui.label(format!("complex 0: '{}'", 0));
+            ui.label(format!(" f: {:?} Hz   T: {:?} sec", inputSig.f, inputSig.period));
+            ui.label(format!(" pfi: {:?}", inputSig.phi * 180.0 / PI));
+            ui.end_row();
+            if ui.button("just button").clicked() {
+            }
+            Plot::new("complex")
+            .show(ui, |plotUi| {
+                plotUi.points(
+                    Points::new(PlotPoints::new(
+                        inputSig.complexPoints(),
+                    )).color(Color32::BLUE),
+                );
+                plotUi.line(
+                    Line::new(
+                        inputSig.complexCurrent.clone(),
+                    )
+                    .color(Color32::YELLOW),
+                )
+            });
+        });
         egui::Window::new("input").show(ctx, |ui| {
             ui.label(format!(" t: {:?}", inputSig.t.last().unwrap()));
             ui.label(format!("origin length: {}", inputSig.origin.len()));
