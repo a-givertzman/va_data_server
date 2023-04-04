@@ -77,12 +77,15 @@ impl eframe::App for UiApp {
         });
         egui::Window::new("fft").show(ctx, |ui| {
             // ui.label(format!("new fft: '{}'", 0));
+            let points = inputSig.fftPoints();
+            ui.label(format!("fftComplex length: {}", inputSig.fftComplex.len()));
+            ui.label(format!("fftPoints length: {}", points.len()));
             if ui.button("just button").clicked() {
             }
             Plot::new("fft").show(ui, |plotUi| {
                 plotUi.line(
                     Line::new(PlotPoints::new(
-                        inputSig.fftPoints(),
+                        points,
                     )).color(Color32::LIGHT_GREEN),
                 )
             });

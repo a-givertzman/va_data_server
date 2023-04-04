@@ -66,23 +66,27 @@ impl InputSignal {
         match self.t.last() {
             Some(tOld) => {
                 let t = tOld + self.step;
-
                 self.t.push(t);
+
+                let PI2f = PI2 * self.f;
+                self.phi += PI2f * self.step;
+                if self.phi > PI2f * self.period {
+                    self.phi = 0.0;
+                }
                 
-                let rawInput = (self.builder)(t, self.f);
-                self.inputFilter.add(rawInput);
+                self.inputFilter.add((self.builder)(t, self.f));
                 let input = self.inputFilter.value();
                 self.origin.push(input);
                 self.xyPoints.push([t as f64, input as f64]);
         
-                self.phi = PI2 * self.f * t;
-                let re0 = (PI2 * self.f * t).cos();
-                let im0 = (PI2 * self.f * t).sin();
+                let PI2ft = PI2f * t;
+                let re0 = (PI2ft).cos();
+                let im0 = (PI2ft).sin();
                 self.complex0Current = vec![[0.0, 0.0], [re0 as f64, im0 as f64]];
                 self.complex0.push(Complex{ re: re0, im: im0 });
         
-                let re = input * (PI2 * self.f * t).cos();
-                let im = input * (PI2 * self.f * t).sin();
+                let re = input * (PI2ft).cos();
+                let im = input * (PI2ft).sin();
                 let complex = Complex{ re, im };
                 self.complex.push(complex);
                 if self.t.len() > self.len {
