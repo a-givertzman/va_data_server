@@ -52,6 +52,7 @@ pub struct AnalizeFft {
     pub xyPoints: Vec<[f64; 2]>,
     fft: Arc<dyn Fft<f32>>,
     PI2f: f32,
+    ready: bool,
 }
 impl AnalizeFft {
     ///
@@ -87,6 +88,7 @@ impl AnalizeFft {
             xyPoints: vec![[0.0, 0.0]],
             fft,
             PI2f: PI2 * f,
+            ready: false,
         }
     }
     ///
@@ -100,8 +102,13 @@ impl AnalizeFft {
                 while !cancel {
                     // println!("tread: {:?} cycle started", thread::current().name().unwrap());
                     this.lock().unwrap().next();
-                    this.lock().unwrap().fftProcess();
-                    thread::sleep(time::Duration::from_nanos(100000));
+                    if this.lock().unwrap().ready {
+                        this.lock().unwrap().fftProcess();
+                        thread::sleep(time::Duration::from_micros(100));
+                    } else {
+                        thread::sleep(time::Duration::from_micros(500));
+                    }
+                    // thread::sleep(time::Duration::from_nanos(100000));
                 }
             })?
         );
@@ -135,14 +142,13 @@ impl AnalizeFft {
         self.complexCurrent = vec![[0.0, 0.0], [re as f64, im as f64]];
         self.complex.push(Complex{ re, im });
         if self.t.len() > self.len {
-            println!("[AnalizeFft] length excidded {:?}", thread::current().name().unwrap());
             self.t.remove(0);
             self.origin.remove(0);
             self.complex0.remove(0);
             self.complex.remove(0);
             self.xyPoints.remove(0);
+            self.ready = true;
         }
-        // println!("complex: {:?}", complex);
     }
     ///
     pub fn fftProcess(&mut self) {

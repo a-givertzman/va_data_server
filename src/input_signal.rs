@@ -79,7 +79,7 @@ impl InputSignal {
                 while !cancel {
                     // println!("tread: {:?} cycle started", thread::current().name().unwrap());
                     this.lock().unwrap().next();
-                    thread::sleep(time::Duration::from_nanos(10000));
+                    thread::sleep(time::Duration::from_micros(1000));
                 }
             })?
         );
@@ -94,9 +94,6 @@ impl InputSignal {
     /// 
     /// Calculates all new values with new time
     fn next(&mut self) {
-        // let th = thread::current();
-        // let thName = th.name().unwrap();
-        // println!("tread: {:?} next started", thName);
         self.t = self.t + self.step;
 
         let PI2f = PI2 * self.f;
@@ -110,18 +107,8 @@ impl InputSignal {
         self.amplitude = (self.builder)(self.t, self.f);
         self.xyPoints.push([self.t as f64, self.amplitude as f64]);
         if self.xyPoints.len() > self.len {
-            // println!("[InputSignal] length excidded {:?}", thread::current().name().unwrap());
             self.xyPoints.remove(0);
         }
-        // println!("tread: {:?} amplitude {}", thName, self.amplitude);
-
-        // let PI2ft = PI2f * t;
-        // let re0 = (PI2ft).cos();
-        // let im0 = (PI2ft).sin();
-
-        // let re = input * (PI2ft).cos();
-        // let im = input * (PI2ft).sin();
-        // println!("complex: {:?}", complex);
     }
     ///
     /// current value [time, amplitude]

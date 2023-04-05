@@ -29,12 +29,12 @@ fn main() -> Result<(), Box<dyn Error>> {
             |t, f| {
                 // println!("build input signal in thread: {:?}", thread::current().name().unwrap());
                 0.7 * (PI2f * t * 10.0).sin()
-                + 0.05 * (PI2f * t * 500.0).sin()
-                + 0.10 * (PI2f * t * 1000.0).sin()
-                + 0.50 * (PI2f * t * 5000.0).sin()
-                + 0.60 * (PI2f * t * 6000.0).sin()
-                + 0.70 * (PI2f * t * 7000.0).sin()
-                + 0.80 * (PI2f * t * 8000.0).sin()
+                + 10.05 * (PI2f * t * 500.0).sin()
+                + 10.10 * (PI2f * t * 1000.0).sin()
+                + 10.50 * (PI2f * t * 5000.0).sin()
+                + 10.60 * (PI2f * t * 6000.0).sin()
+                + 10.70 * (PI2f * t * 7000.0).sin()
+                + 10.80 * (PI2f * t * 8000.0).sin()
                 // + 0.90 * (PI2 * f * t * 9000.0).sin()
                 // + 1.00 * (PI2 * f * t * 10000.0).sin()
                 // + 1.10 * (PI2 * f * t * 11000.0).sin()
@@ -76,14 +76,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         inputSignal,
         analyzeFft,
     );
-
-    // let analyzeFft = uiApp.analyzeFft.clone();
-    // thread::Builder::new().name("ffi process".to_string()).spawn(move || {
-    //     loop {
-    //         analyzeFft.lock().next();
-    //         analyzeFft.lock().fftProcess();
-    //     }
-    // })?;
 
     env::set_var("RUST_BACKTRACE", "full");
     let native_options = eframe::NativeOptions {
