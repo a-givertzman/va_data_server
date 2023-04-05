@@ -104,9 +104,9 @@ impl AnalizeFft {
                     this.lock().unwrap().next();
                     if this.lock().unwrap().ready {
                         this.lock().unwrap().fftProcess();
-                        thread::sleep(time::Duration::from_micros(100));
+                        thread::sleep(time::Duration::from_micros(1000));
                     } else {
-                        thread::sleep(time::Duration::from_micros(500));
+                        thread::sleep(time::Duration::from_micros(1000));
                     }
                     // thread::sleep(time::Duration::from_nanos(100000));
                 }
@@ -131,14 +131,14 @@ impl AnalizeFft {
         self.origin.push(input);
         self.xyPoints.push([t as f64, input as f64]);
 
-        let PI2ft = self.PI2f * t;
-        let re0 = (PI2ft).cos();
-        let im0 = (PI2ft).sin();
+        // let PI2ft = self.PI2f * t;
+        let re0 = (self.phi).cos();
+        let im0 = (self.phi).sin();
         self.complex0Current = vec![[0.0, 0.0], [re0 as f64, im0 as f64]];
         self.complex0.push(Complex{ re: re0, im: im0 });
 
-        let re = input * (PI2ft).cos();
-        let im = input * (PI2ft).sin();
+        let re = input * (self.phi).cos();
+        let im = input * (self.phi).sin();
         self.complexCurrent = vec![[0.0, 0.0], [re as f64, im as f64]];
         self.complex.push(Complex{ re, im });
         if self.t.len() > self.len {
@@ -183,7 +183,7 @@ impl AnalizeFft {
         let mut points: Vec<[f64; 2]> = vec![];
         let factor = 1.0 / ((self.len / 2) as f32);
         for i in 0..self.t.len() / 2 {
-            let x = i as f64;
+            let x = (i as f32) as f64;
             let y = (self.fftComplex[i].abs() * factor) as f64;
             points.push([x, 0.0]);
             points.push([x, y]);

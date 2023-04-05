@@ -28,12 +28,12 @@ fn main() -> Result<(), Box<dyn Error>> {
             fIn, 
             |t, f| {
                 // println!("build input signal in thread: {:?}", thread::current().name().unwrap());
-                0.7 * (PI2f * t * 10.0).sin()
-                + 10.05 * (PI2f * t * 500.0).sin()
-                + 10.10 * (PI2f * t * 1000.0).sin()
-                + 10.50 * (PI2f * t * 5000.0).sin()
-                + 10.60 * (PI2f * t * 6000.0).sin()
-                + 10.70 * (PI2f * t * 7000.0).sin()
+                0.7 * (PI2f * t * 100.0).sin()
+                // + 10.05 * (PI2f * t * 500.0).sin()
+                // + 10.10 * (PI2f * t * 1000.0).sin()
+                // + 10.50 * (PI2f * t * 5000.0).sin()
+                // + 10.60 * (PI2f * t * 6000.0).sin()
+                // + 10.70 * (PI2f * t * 7000.0).sin()
                 + 10.80 * (PI2f * t * 8000.0).sin()
                 // + 0.90 * (PI2 * f * t * 9000.0).sin()
                 // + 1.00 * (PI2 * f * t * 10000.0).sin()

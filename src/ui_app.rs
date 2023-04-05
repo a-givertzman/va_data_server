@@ -92,7 +92,9 @@ impl eframe::App for UiApp {
 
         egui::Window::new("input signal").show(ctx, |ui| {
             let mut inputSignal = self.inputSignal.lock().unwrap();
+            ui.label(format!(" i: {:?}", inputSignal.i));
             ui.label(format!(" t: {:?}", inputSignal.t));
+            ui.label(format!(" phi: {:?}", inputSignal.phi));
             // ui.label(format!(" t: {:?}", inputSignal.t));
             ui.label(format!("length: {}", inputSignal.xyPoints.len()));
             // ui.label(format!("xyPoints length: {}", inputSig.xyPoints.len()));

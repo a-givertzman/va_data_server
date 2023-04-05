@@ -27,6 +27,7 @@ pub struct InputSignal {
     len: usize,
     step: f32,
     pub t: f32,
+    pub i: usize,
     pub phi: f32,
     pub amplitude: f32,
     pub xyPoints: Vec<[f64; 2]>,
@@ -49,15 +50,16 @@ impl InputSignal {
         Self { 
             handle: None,
             cancel: false,
-            f: f,
-            period: 1.0 / f,
+            f,
+            period,
             builder,
-            len: len,
+            len,
             step: match step {
                 Some(value) => value,
                 None => delta,
             },
             t: 0.0,
+            i: 0,
             phi: 0.0,
             amplitude: 0.0,
             // origin: vec![0.0],
@@ -94,13 +96,14 @@ impl InputSignal {
     /// 
     /// Calculates all new values with new time
     fn next(&mut self) {
-        self.t = self.t + self.step;
-
-        let PI2f = PI2 * self.f;
-        self.phi += PI2f * self.step;
-        if self.phi > PI2f * self.period {
-            self.phi = 0.0;
+        self.i += 1;
+        if self.i > self.len {
+            self.i = 0;
         }
+        self.t = self.t + self.step;
+        self.phi = PI2 * ((self.i / self.len) as f32);
+
+        // let PI2f = PI2 * self.f;
         
         // self.inputFilter.add((self.builder)(t, self.f));
         // let input = self.inputFilter.value();
