@@ -1,7 +1,15 @@
 #![allow(non_snake_case)]
 
-use std::sync::Arc;
-
+use std::{
+    time,
+    thread, 
+    sync::{
+        Arc, 
+        Mutex,
+    },
+    error::Error, 
+};
+// use egui::mutex::Mutex;
 use rustfft::{
     num_complex::{
         Complex, 
@@ -17,18 +25,21 @@ use crate::{
     }
 };
 
+
 pub const PI: f32 = std::f32::consts::PI;
 pub const PI2: f32 = PI * 2.0;
 
-
 type BuilderCallback = fn(t: f32, f: f32) -> f32;
 
+///
+/// 
 pub struct AnalizeFft {
+    handle: Option<thread::JoinHandle<()>>,
+    cancel: bool,
+    pub inputSignal: Arc<Mutex<InputSignal>>,
     pub f: f32,
     pub period: f32,
-    builder: BuilderCallback,
     len: usize,
-    step: f32,
     pub t: Vec<f32>,
     pub origin: Vec<f32>,
     pub complex0: Vec<Complex<f32>>,
@@ -40,27 +51,30 @@ pub struct AnalizeFft {
     pub phi: f32,
     pub xyPoints: Vec<[f64; 2]>,
     fft: Arc<dyn Fft<f32>>,
+    PI2f: f32,
 }
 impl AnalizeFft {
     ///
-    pub fn new(f: f32, builder: BuilderCallback, len: usize, step: Option<f32>) -> Self {
+    pub fn new(inputSignal: Arc<Mutex<InputSignal>>, f: f32, len: usize) -> Self {
         let period = 1.0 / f;
         let delta = period / (len as f32);
-        println!("f: {:?} Hz", f);
-        println!("T: {:?} sec", period);
-        println!("N: {:?} poins", len);
-        println!("delta: {:?} sec", delta);
+        println!("[AnalizeFft] f: {:?} Hz", f);
+        println!("[AnalizeFft] T: {:?} sec", period);
+        println!("[AnalizeFft] N: {:?} poins", len);
+        println!("[AnalizeFft] delta: {:?} sec", delta);
         let mut planner = FftPlanner::new();
         let fft = planner.plan_fft_forward(len);
         Self { 
-            f: f,
+            handle: None,
+            cancel: false,
+            inputSignal,
+            f,
             period: 1.0 / f,
-            builder,
-            len: len,
-            step: match step {
-                Some(value) => value,
-                None => delta,
-            },
+            len,
+            // step: match step {
+            //     Some(value) => value,
+            //     None => delta,
+            // },
             t: Vec::from([0.0]),
             origin: vec![0.0],
             complex0: vec![Complex{re: 0.0, im: 0.0}],
@@ -71,54 +85,70 @@ impl AnalizeFft {
             fftScalar: vec![0.0; len],
             phi: 0.0,
             xyPoints: vec![[0.0, 0.0]],
-            fft: fft,
+            fft,
+            PI2f: PI2 * f,
         }
     }
     ///
+    /// Starts in the thread
+    pub fn run(this: Arc<Mutex<Self>>) -> Result<(), Box<dyn Error>> {
+        let cancel = this.lock().unwrap().cancel;
+        let me = this.clone();
+        let handle = Some(
+            thread::Builder::new().name("AnalizeFft tread".to_string()).spawn(move || {
+                println!("[AnalizeFft] started in {:?}", thread::current().name().unwrap());
+                while !cancel {
+                    // println!("tread: {:?} cycle started", thread::current().name().unwrap());
+                    this.lock().unwrap().next();
+                    this.lock().unwrap().fftProcess();
+                    thread::sleep(time::Duration::from_nanos(100000));
+                }
+            })?
+        );
+        me.lock().unwrap().handle = handle;
+        Ok(())
+    }
+    ///
+    /// Stops thread
+    pub fn cancel(&mut self) {
+        self.cancel = true;
+    }
+    ///
     pub fn next(&mut self) {
-        match self.t.last() {
-            Some(tOld) => {
-                let t = tOld + self.step;
-                self.t.push(t);
+        let current = self.inputSignal.lock().unwrap().read();
+        self.phi = current[0];
+        let t = current[1];
+        let input = current[2];
+        
+        self.t.push(t);
+        self.origin.push(input);
+        self.xyPoints.push([t as f64, input as f64]);
 
-                let PI2f = PI2 * self.f;
-                self.phi += PI2f * self.step;
-                if self.phi > PI2f * self.period {
-                    self.phi = 0.0;
-                }
-                
-                let input = (self.builder)(t, self.f);
-                self.origin.push(input);
-                self.xyPoints.push([t as f64, input as f64]);
-        
-                let PI2ft = PI2f * t;
-                let re0 = (PI2ft).cos();
-                let im0 = (PI2ft).sin();
-                self.complex0Current = vec![[0.0, 0.0], [re0 as f64, im0 as f64]];
-                self.complex0.push(Complex{ re: re0, im: im0 });
-        
-                let re = input * (PI2ft).cos();
-                let im = input * (PI2ft).sin();
-                self.complexCurrent = vec![[0.0, 0.0], [re as f64, im as f64]];
-                self.complex.push(Complex{ re, im });
-                if self.t.len() > self.len {
-                    self.t.remove(0);
-                    self.xyPoints.remove(0);
-                    self.origin.remove(0);
-                    self.complex.remove(0);
-                }
-                // println!("complex: {:?}", complex);
-            },
-            None => {},
-        };
+        let PI2ft = self.PI2f * t;
+        let re0 = (PI2ft).cos();
+        let im0 = (PI2ft).sin();
+        self.complex0Current = vec![[0.0, 0.0], [re0 as f64, im0 as f64]];
+        self.complex0.push(Complex{ re: re0, im: im0 });
+
+        let re = input * (PI2ft).cos();
+        let im = input * (PI2ft).sin();
+        self.complexCurrent = vec![[0.0, 0.0], [re as f64, im as f64]];
+        self.complex.push(Complex{ re, im });
+        if self.t.len() > self.len {
+            println!("[AnalizeFft] length excidded {:?}", thread::current().name().unwrap());
+            self.t.remove(0);
+            self.origin.remove(0);
+            self.complex0.remove(0);
+            self.complex.remove(0);
+            self.xyPoints.remove(0);
+        }
+        // println!("complex: {:?}", complex);
     }
     ///
     pub fn fftProcess(&mut self) {
         for i in 0..self.complex.len() {
             self.fftComplex[i] = self.complex[i].clone();
         }
-        // let mut planner = FftPlanner::new();
-        // let fft = planner.plan_fft_forward(self.len.into());
         self.fft.process(&mut self.fftComplex);
         // self.fft.process_with_scratch(&mut self.fftComplex);
     }    
@@ -155,3 +185,46 @@ impl AnalizeFft {
         points
     }    
 }
+
+
+
+
+
+
+// pub fn next(&mut self) {
+//     match self.t.last() {
+//         Some(tOld) => {
+//             let t = tOld + self.step;
+//             self.t.push(t);
+
+//             let PI2f = PI2 * self.f;
+//             self.phi += PI2f * self.step;
+//             if self.phi > PI2f * self.period {
+//                 self.phi = 0.0;
+//             }
+            
+//             let input = (self.builder)(t, self.f);
+//             self.origin.push(input);
+//             self.xyPoints.push([t as f64, input as f64]);
+    
+//             let PI2ft = PI2f * t;
+//             let re0 = (PI2ft).cos();
+//             let im0 = (PI2ft).sin();
+//             self.complex0Current = vec![[0.0, 0.0], [re0 as f64, im0 as f64]];
+//             self.complex0.push(Complex{ re: re0, im: im0 });
+    
+//             let re = input * (PI2ft).cos();
+//             let im = input * (PI2ft).sin();
+//             self.complexCurrent = vec![[0.0, 0.0], [re as f64, im as f64]];
+//             self.complex.push(Complex{ re, im });
+//             if self.t.len() > self.len {
+//                 self.t.remove(0);
+//                 self.xyPoints.remove(0);
+//                 self.origin.remove(0);
+//                 self.complex.remove(0);
+//             }
+//             // println!("complex: {:?}", complex);
+//         },
+//         None => {},
+//     };
+// }

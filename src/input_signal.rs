@@ -3,21 +3,21 @@
 use std::{
     sync::{
         Arc, 
-        // Mutex
+        Mutex
     }, 
     time,
     thread,
     error::Error,
 };
-
-use egui::mutex::Mutex;
+// use egui::mutex::Mutex;
 
 pub const PI: f32 = std::f32::consts::PI;
 pub const PI2: f32 = PI * 2.0;
 
-
 type BuilderCallback = fn(t: f32, f: f32) -> f32;
 
+///
+/// 
 pub struct InputSignal {
     handle: Option<thread::JoinHandle<()>>,
     cancel: bool,
@@ -38,13 +38,14 @@ pub struct InputSignal {
 }
 impl InputSignal {
     ///
+    /// Creates new instance
     pub fn new(f: f32, builder: BuilderCallback, len: usize, step: Option<f32>) -> Self {
         let period = 1.0 / f;
         let delta = period / (len as f32);
-        println!("f: {:?} Hz", f);
-        println!("T: {:?} sec", period);
-        println!("N: {:?} poins", len);
-        println!("delta: {:?} sec", delta);
+        println!("[InputSignal] f: {:?} Hz", f);
+        println!("[InputSignal] T: {:?} sec", period);
+        println!("[InputSignal] N: {:?} poins", len);
+        println!("[InputSignal] delta: {:?} sec", delta);
         Self { 
             handle: None,
             cancel: false,
@@ -68,26 +69,33 @@ impl InputSignal {
         }
     }
     ///
+    /// Starts in the thread
     pub fn run(this: Arc<Mutex<Self>>) -> Result<(), Box<dyn Error>> {
-        let t = this.lock().t;
-        let cancel = this.lock().cancel;
-        let mut th = this.clone();
-        let h = Some(
+        let cancel = this.lock().unwrap().cancel;
+        let me = this.clone();
+        let handle = Some(
             thread::Builder::new().name("InputSignal tread".to_string()).spawn(move || {
+                println!("[InputSignal] started in {:?}", thread::current().name().unwrap());
                 while !cancel {
                     // println!("tread: {:?} cycle started", thread::current().name().unwrap());
-                    this.lock().next();
+                    this.lock().unwrap().next();
                     thread::sleep(time::Duration::from_nanos(10000));
                 }
             })?
         );
-        th.lock().handle = h;
+        me.lock().unwrap().handle = handle;
         Ok(())
     }
+    ///
+    /// Stops thread
+    pub fn cancel(&mut self) {
+        self.cancel = true;
+    }
     /// 
-    pub fn next(&mut self) {
-        let th = thread::current();
-        let thName = th.name().unwrap();
+    /// Calculates all new values with new time
+    fn next(&mut self) {
+        // let th = thread::current();
+        // let thName = th.name().unwrap();
         // println!("tread: {:?} next started", thName);
         self.t = self.t + self.step;
 
@@ -102,6 +110,7 @@ impl InputSignal {
         self.amplitude = (self.builder)(self.t, self.f);
         self.xyPoints.push([self.t as f64, self.amplitude as f64]);
         if self.xyPoints.len() > self.len {
+            // println!("[InputSignal] length excidded {:?}", thread::current().name().unwrap());
             self.xyPoints.remove(0);
         }
         // println!("tread: {:?} amplitude {}", thName, self.amplitude);
@@ -113,5 +122,10 @@ impl InputSignal {
         // let re = input * (PI2ft).cos();
         // let im = input * (PI2ft).sin();
         // println!("complex: {:?}", complex);
+    }
+    ///
+    /// current value [time, amplitude]
+    pub fn read(&self) -> [f32; 3] {
+        [self.phi, self.t, self.amplitude]
     }
 }

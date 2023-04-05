@@ -2,7 +2,7 @@
 
 use std::sync::{
     Arc, 
-    // Mutex
+    Mutex
 };
 
 use egui::{
@@ -12,7 +12,7 @@ use egui::{
         PlotPoints, Line
     }, 
     Color32, 
-    mutex::Mutex,
+    // mutex::Mutex,
 };
 
 use crate::{
@@ -30,10 +30,10 @@ pub struct UiApp {
 }
 
 impl UiApp {
-    pub fn new(inputSignal: Arc<Mutex<InputSignal>>, analyzeFft: AnalizeFft) -> Self {
+    pub fn new(inputSignal: Arc<Mutex<InputSignal>>, analyzeFft: Arc<Mutex<AnalizeFft>>) -> Self {
         Self {
             inputSignal: inputSignal, 
-            analyzeFft: Arc::new(Mutex::new(analyzeFft)) ,
+            analyzeFft: analyzeFft,
         }
     }
 }
@@ -41,15 +41,15 @@ impl UiApp {
 impl eframe::App for UiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
 
-        let inputSignal = self.inputSignal.lock();
-        let analyzeFft = self.analyzeFft.lock();
-
+        
         egui::Window::new("complex 0").show(ctx, |ui| {
+            let mut analyzeFft = self.analyzeFft.lock().unwrap();
             // ui.label(format!("complex 0: '{}'", 0));
             ui.label(format!(" f: {:?} Hz   T: {:?} sec", analyzeFft.f, analyzeFft.period));
             ui.label(format!(" pfi: {:?}", analyzeFft.phi * 180.0 / PI));
             ui.end_row();
-            if ui.button("just button").clicked() {
+            if ui.button("Stop").clicked() {
+                analyzeFft.cancel();
             }
             Plot::new("complex 0")
             .show(ui, |plotUi| {
@@ -67,6 +67,7 @@ impl eframe::App for UiApp {
             });
         });
         egui::Window::new("input complex").show(ctx, |ui| {
+            let analyzeFft = self.analyzeFft.lock().unwrap();
             // ui.label(format!("complex 0: '{}'", 0));
             ui.label(format!(" f: {:?} Hz   T: {:?} sec", analyzeFft.f, analyzeFft.period));
             ui.label(format!(" pfi: {:?}", analyzeFft.phi * 180.0 / PI));
@@ -90,12 +91,14 @@ impl eframe::App for UiApp {
         });
 
         egui::Window::new("input signal").show(ctx, |ui| {
+            let mut inputSignal = self.inputSignal.lock().unwrap();
             ui.label(format!(" t: {:?}", inputSignal.t));
             // ui.label(format!(" t: {:?}", inputSignal.t));
-            // ui.label(format!("origin length: {}", inputSig.origin.len()));
+            ui.label(format!("length: {}", inputSignal.xyPoints.len()));
             // ui.label(format!("xyPoints length: {}", inputSig.xyPoints.len()));
             // ui.end_row();
-            if ui.button("just button").clicked() {
+            if ui.button("Stop").clicked() {
+                inputSignal.cancel();
             }
             Plot::new("inputsignal").show(ui, |plotUi| {
                 plotUi.points(
@@ -106,7 +109,8 @@ impl eframe::App for UiApp {
             });
         });
 
-        egui::Window::new("input").show(ctx, |ui| {
+        egui::Window::new("AnalyzeFft input").show(ctx, |ui| {
+            let analyzeFft = self.analyzeFft.lock().unwrap();
             ui.label(format!(" t: {:?}", analyzeFft.t.last().unwrap()));
             ui.label(format!("origin length: {}", analyzeFft.origin.len()));
             ui.label(format!("xyPoints length: {}", analyzeFft.xyPoints.len()));
@@ -122,6 +126,7 @@ impl eframe::App for UiApp {
             });
         });
         egui::Window::new("fft").show(ctx, |ui| {
+            let analyzeFft = self.analyzeFft.lock().unwrap();
             // ui.label(format!("new fft: '{}'", 0));
             let points = analyzeFft.fftPoints();
             ui.label(format!("fftComplex length: {}", analyzeFft.fftComplex.len()));
