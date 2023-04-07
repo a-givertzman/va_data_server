@@ -46,10 +46,10 @@ impl AnalizeFft {
     pub fn new(f: f32, builder: BuilderCallback, len: usize, step: Option<f32>) -> Self {
         let period = 1.0 / f;
         let delta = period / (len as f32);
-        println!("f: {:?} Hz", f);
-        println!("T: {:?} sec", period);
-        println!("N: {:?} poins", len);
-        println!("delta: {:?} sec", delta);
+        debug!("f: {:?} Hz", f);
+        debug!("T: {:?} sec", period);
+        debug!("N: {:?} poins", len);
+        debug!("delta: {:?} sec", delta);
         let mut planner = FftPlanner::new();
         let fft = planner.plan_fft_forward(len);
         Self { 
@@ -107,7 +107,7 @@ impl AnalizeFft {
                     self.origin.remove(0);
                     self.complex.remove(0);
                 }
-                // println!("complex: {:?}", complex);
+                // debug!("complex: {:?}", complex);
             },
             None => {},
         };

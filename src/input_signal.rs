@@ -46,10 +46,10 @@ impl<const N: usize> InputSignal<N> {
     pub fn new(f: f32, builder: fn(f32) -> f32, len: usize, step: Option<f32>) -> Self {
         let period = 1.0 / f;
         let delta = period / (len as f32);
-        println!("[InputSignal] f: {:?} Hz", f);
-        println!("[InputSignal] T: {:?} sec", period);
-        println!("[InputSignal] N: {:?} poins", len);
-        println!("[InputSignal] delta: {:?} sec", delta);
+        debug!("[InputSignal] f: {:?} Hz", f);
+        debug!("[InputSignal] T: {:?} sec", period);
+        debug!("[InputSignal] N: {:?} poins", len);
+        debug!("[InputSignal] delta: {:?} sec", delta);
         Self { 
             handle: None,
             cancel: false,
@@ -74,24 +74,14 @@ impl<const N: usize> InputSignal<N> {
     pub fn run(this: Arc<Mutex<Self>>) -> Result<(), Box<dyn Error>> {
         let cancel = this.lock().unwrap().cancel;
         let me = this.clone();
-        let intervalSeconds = (this.lock().unwrap().period as f64) / (this.lock().unwrap().len as f64);
-        let interval = Duration::from_secs_f64(intervalSeconds);
-
-
-        println!("[InputSignal] interval {:?} sec", intervalSeconds);
-        println!("[InputSignal] interval {:?} ns", interval.as_nanos());
+        let mut interval = Interval::new(this.lock().unwrap().period as f64);
         let handle = Some(
             thread::Builder::new().name("InputSignal tread".to_string()).spawn(move || {
-                println!("[InputSignal] started in {:?}", thread::current().name().unwrap());
+                debug!("[InputSignal] started in {:?}", thread::current().name().unwrap());
                 while !cancel {
-                    let start = std::time::Instant::now();
-                    // println!("tread: {:?} cycle started", thread::current().name().unwrap());
+                    // debug!("tread: {:?} cycle started", thread::current().name().unwrap());
                     this.lock().unwrap().next();
-                    // let elapsed = start.elapsed();
-                    if interval.cmp(&start.elapsed()) == Ordering::Greater {
-                        let dur = interval - start.elapsed();
-                        std::thread::sleep(dur);
-                    }
+                    interval.wait();
                     // thread::sleep(time::Duration::from_micros(1000));
                 }
             })?

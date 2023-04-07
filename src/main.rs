@@ -35,7 +35,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         InputSignal::<N>::new(
             fIn, 
             |t| {
-                // println!("build input signal in thread: {:?}", thread::current().name().unwrap());
+                // debug!("build input signal in thread: {:?}", thread::current().name().unwrap());
                 0.7 * (PI2f * t * 100.0).sin()
                 // + 10.05 * (PI2f * t * 500.0).sin()
                 // + 10.10 * (PI2f * t * 1000.0).sin()

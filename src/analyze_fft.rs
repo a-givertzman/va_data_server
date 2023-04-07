@@ -59,10 +59,10 @@ impl<const N: usize> AnalizeFft<N> {
     pub fn new(inputSignal: Arc<Mutex<InputSignal<N>>>, f: f32, len: usize) -> Self {
         let period = 1.0 / f;
         let delta = period / (len as f32);
-        println!("[AnalizeFft] f: {:?} Hz", f);
-        println!("[AnalizeFft] T: {:?} sec", period);
-        println!("[AnalizeFft] N: {:?} poins", len);
-        println!("[AnalizeFft] delta: {:?} sec", delta);
+        debug!("[AnalizeFft] f: {:?} Hz", f);
+        debug!("[AnalizeFft] T: {:?} sec", period);
+        debug!("[AnalizeFft] N: {:?} poins", len);
+        debug!("[AnalizeFft] delta: {:?} sec", delta);
         let mut planner = FftPlanner::new();
         let fft = planner.plan_fft_forward(len);
         Self { 
@@ -98,9 +98,9 @@ impl<const N: usize> AnalizeFft<N> {
         let me = this.clone();
         let handle = Some(
             thread::Builder::new().name("AnalizeFft tread".to_string()).spawn(move || {
-                println!("[AnalizeFft] started in {:?}", thread::current().name().unwrap());
+                debug!("[AnalizeFft] started in {:?}", thread::current().name().unwrap());
                 while !cancel {
-                    // println!("tread: {:?} cycle started", thread::current().name().unwrap());
+                    // debug!("tread: {:?} cycle started", thread::current().name().unwrap());
                     this.lock().unwrap().next();
                     if this.lock().unwrap().ready {
                         this.lock().unwrap().fftProcess();
@@ -229,7 +229,7 @@ impl<const N: usize> AnalizeFft<N> {
 //                 self.origin.remove(0);
 //                 self.complex.remove(0);
 //             }
-//             // println!("complex: {:?}", complex);
+//             // debug!("complex: {:?}", complex);
 //         },
 //         None => {},
 //     };
