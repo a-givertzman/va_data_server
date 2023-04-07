@@ -5,6 +5,12 @@ mod analyze_fft;
 mod ui_app;
 mod interval;
 
+use log::{
+    // info,
+    // trace,
+    debug,
+    // warn,
+};
 use std::{
     env,
     error::Error, 
@@ -28,8 +34,11 @@ use ui_app::UiApp;
 /// 32_768,  // up to 15 KHz
 /// 65_536,  // up to 30 KHz
 fn main() -> Result<(), Box<dyn Error>> {
+    env::set_var("RUST_LOG", "debug");
+    env::set_var("RUST_BACKTRACE", "1");
+    env_logger::init();
     const N: usize = 16_384;
-    const fIn: f32 = 100.0000;
+    const fIn: f32 = 1000.0000;
     const PI2f: f32 = PI2 * fIn;
     let inputSignal = Arc::new(Mutex::new(
         InputSignal::<N>::new(

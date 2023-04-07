@@ -1,15 +1,14 @@
 #![allow(non_snake_case)]
 
-use std::{
-    time::Duration,
-};
 use log::{
     // info,
     // trace,
     debug,
     // warn,
 };
-
+use std::{
+    time::Duration,
+};
 
 ///
 /// Interval provides precise cycle period. 
@@ -18,15 +17,13 @@ use log::{
 /// the timestamp at the end of wait will be stored into `previous`
 /// on the next call `wait()` current wait delay will be calculated as: `now` - `previous`
 pub struct Interval {
-    period: f64,
-    interval: Duration,
+    pub period: f64,
     sleepDelta: Duration,
     waitInterval: u128,
     previous: u128,
     sleeped: u128,
     limit: u128,
     start: std::time::Instant,
-    cancel: bool,
 }
 impl Interval {
     /// 
@@ -43,14 +40,12 @@ impl Interval {
         debug!("waitInterval : {:?}ns\n", waitInterval);
         Self {
             period,
-            interval,
             sleepDelta,
             waitInterval,
             previous: 0,
             sleeped: 0,
             limit: 0,
             start: std::time::Instant::now(),
-            cancel: false,
         }
     }
     ///
@@ -64,7 +59,7 @@ impl Interval {
             // self.sleeped += 1;
         }
         // times.push([start.elapsed().as_nanos() - previous, sleeped]);
-        debug!("elapsed : {:?}ns\n", [self.start.elapsed().as_nanos() - self.previous, self.sleeped]);
+        debug!("elapsed : {:?}ns", [self.start.elapsed().as_nanos() - self.previous, self.sleeped]);
         self.previous = self.start.elapsed().as_nanos();
         // for t in times {
         //     trace!("at: {:?}", t);

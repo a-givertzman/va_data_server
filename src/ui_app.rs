@@ -1,10 +1,15 @@
 #![allow(non_snake_case)]
 
+// use log::{
+    // info,
+    // trace,
+    // debug,
+    // warn,
+// };
 use std::sync::{
     Arc, 
     Mutex
 };
-
 use egui::{
     plot::{
         Plot, 
@@ -14,7 +19,6 @@ use egui::{
     Color32, 
     // mutex::Mutex,
 };
-
 use crate::{
     analyze_fft::{
         AnalizeFft, PI
