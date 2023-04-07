@@ -28,15 +28,15 @@ use crate::{
 
 
 
-pub struct UiApp<const N: usize> {
-    pub inputSignal: Arc<Mutex<InputSignal<N>>>,
-    pub analyzeFft: Arc<Mutex<AnalizeFft<N>>>,
+pub struct UiApp {
+    pub inputSignal: Arc<Mutex<InputSignal>>,
+    pub analyzeFft: Arc<Mutex<AnalizeFft>>,
 }
 
-impl<const N: usize> UiApp<N> {
+impl UiApp {
     pub fn new(
-        inputSignal: Arc<Mutex<InputSignal<N>>>, 
-        analyzeFft: Arc<Mutex<AnalizeFft<N>>>
+        inputSignal: Arc<Mutex<InputSignal>>, 
+        analyzeFft: Arc<Mutex<AnalizeFft>>
     ) -> Self {
         Self {
             inputSignal: inputSignal, 
@@ -45,7 +45,7 @@ impl<const N: usize> UiApp<N> {
     }
 }
 
-impl<const N: usize> eframe::App for UiApp<N> {
+impl eframe::App for UiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
 
         

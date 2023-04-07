@@ -14,7 +14,10 @@ use std::{
     thread,
     error::Error, 
 };
-use crate::interval::Interval;
+use crate::{
+    interval::Interval, 
+    circular_queue::CircularQueue
+};
 
 pub const PI: f32 = std::f32::consts::PI;
 pub const PI2: f32 = PI * 2.0;
@@ -23,7 +26,7 @@ pub const PI2: f32 = PI * 2.0;
 
 ///
 /// Emulates analog signal which form can be conigerwd in the `builder` callback
-pub struct InputSignal<const N: usize> {
+pub struct InputSignal {
     handle: Option<thread::JoinHandle<()>>,
     cancel: bool,
     pub f: f32,
@@ -37,10 +40,10 @@ pub struct InputSignal<const N: usize> {
     pub phi: f32,
     /// current amplitude of analog value
     pub amplitude: f32,
-    pub points: BBBuffer<N>,
+    pub points: CircularQueue<f32>,
     pub xyPoints: Vec<[f64; 2]>,
 }
-impl<const N: usize> InputSignal<N> {
+impl InputSignal {
     ///
     /// Creates new instance
     pub fn new(f: f32, builder: fn(f32) -> f32, len: usize, step: Option<f32>) -> Self {
@@ -65,7 +68,7 @@ impl<const N: usize> InputSignal<N> {
             i: 0,
             phi: 0.0,
             amplitude: 0.0,
-            points: Queue::new(),
+            points: CircularQueue::with_capacity(len),
             xyPoints: vec![[0.0, 0.0]],
         }
     }
@@ -109,12 +112,7 @@ impl<const N: usize> InputSignal<N> {
         // self.inputFilter.add((self.builder)(t, self.f));
         // let input = self.inputFilter.value();
         self.amplitude = (self.builder)(self.t);
-        match self.points.enqueue(self.amplitude) {
-            Ok(_) => {},
-            Err(value) => {
-                warn!("[next] error adding to the points queue value: {:?}", value);
-            },
-        };
+        self.points.push(self.amplitude);
         self.xyPoints.push([self.t as f64, self.amplitude as f64]);
         if self.xyPoints.len() > self.len {
             self.xyPoints.remove(0);
