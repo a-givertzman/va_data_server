@@ -30,7 +30,7 @@ impl Interval {
     /// `period`, seconds - looping interval
     pub fn new(period: f64) -> Self {
         let interval = Duration::from_secs_f64(period);
-        let sleepDelta = Duration::from_secs_f64(period / 1000.0);
+        let sleepDelta = Duration::from_secs_f64(period * 0.001);
         let waitInterval = interval.as_nanos();
         debug!("interval : {:?}", interval);
         debug!("interval ms : {:?}", interval.as_millis());
@@ -49,7 +49,7 @@ impl Interval {
         }
     }
     ///
-    /// Looped iterations will be started
+    /// Waits until `period` exceeded
     pub fn wait(&mut self) {
         // let mut times = vec![];
         self.previous = self.start.elapsed().as_nanos();

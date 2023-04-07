@@ -11,8 +11,6 @@ use std::{
         Arc, 
         Mutex
     }, 
-    cmp::Ordering,
-    time::Duration,
     thread,
     error::Error, 
 };
@@ -55,7 +53,7 @@ impl<const N: usize> InputSignal<N> {
         debug!("[InputSignal] f: {:?} Hz", f);
         debug!("[InputSignal] T: {:?} sec", period);
         debug!("[InputSignal] N: {:?} poins", len);
-        debug!("[InputSignal] delta: {:?} sec", delta);
+        debug!("[InputSignal] delta t: {:?} sec", delta);
         Self { 
             handle: None,
             cancel: false,
