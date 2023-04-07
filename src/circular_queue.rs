@@ -82,8 +82,8 @@ pub type AscIterMut<'a, T> = Chain<SliceIterMut<'a, T>, SliceIterMut<'a, T>>;
 pub type Popped<T> = Option<T>;
 
 impl<T> CircularQueue<T> {
-    pub fn buffer(&self) -> &[T] {
-        &self.data.as_slice()// [..self.capacity]
+    pub fn buffer(&self) -> &Vec<T> {
+        &self.data// [..self.capacity]
     }
     /// Constructs a new, empty `CircularQueue<T>` with the requested capacity.
     ///
