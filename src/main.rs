@@ -6,12 +6,12 @@ mod ui_app;
 mod interval;
 mod circular_queue;
 
-use log::{
+// use log::{
     // info,
     // trace,
-    debug,
+    // debug,
     // warn,
-};
+// };
 use std::{
     env,
     error::Error, 

@@ -35,8 +35,6 @@ use crate::{
 pub const PI: f32 = std::f32::consts::PI;
 pub const PI2: f32 = PI * 2.0;
 
-type BuilderCallback = fn(t: f32, f: f32) -> f32;
-
 ///
 /// 
 pub struct AnalizeFft {
@@ -59,6 +57,7 @@ pub struct AnalizeFft {
     fft: Arc<dyn Fft<f32>>,
     PI2f: f32,
     ready: bool,
+    pub points: Vec<f32>,
 }
 impl AnalizeFft {
     ///
@@ -95,6 +94,7 @@ impl AnalizeFft {
             fft,
             PI2f: PI2 * f,
             ready: false,
+            points: vec![0.0; len],
         }
     }
     ///
@@ -128,6 +128,8 @@ impl AnalizeFft {
     }
     ///
     pub fn next(&mut self) {
+        self.inputSignal.lock().unwrap().points.buffer().clone_into(&mut self.points);
+
         let current = self.inputSignal.lock().unwrap().read();
         self.phi = current[0];
         let t = current[1];
