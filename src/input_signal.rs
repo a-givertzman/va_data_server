@@ -4,7 +4,7 @@ use log::{
     // info,
     // trace,
     debug,
-    // warn,
+    warn,
 };
 use std::{
     sync::{
@@ -14,11 +14,7 @@ use std::{
     thread,
     error::Error, 
 };
-use heapless::spsc::Queue;
-
 use crate::interval::Interval;
-
-// use egui::mutex::Mutex;
 
 pub const PI: f32 = std::f32::consts::PI;
 pub const PI2: f32 = PI * 2.0;
@@ -41,7 +37,7 @@ pub struct InputSignal<const N: usize> {
     pub phi: f32,
     /// current amplitude of analog value
     pub amplitude: f32,
-    pub points: Queue<f32, N>,
+    pub points: BBBuffer<N>,
     pub xyPoints: Vec<[f64; 2]>,
 }
 impl<const N: usize> InputSignal<N> {
@@ -113,6 +109,12 @@ impl<const N: usize> InputSignal<N> {
         // self.inputFilter.add((self.builder)(t, self.f));
         // let input = self.inputFilter.value();
         self.amplitude = (self.builder)(self.t);
+        match self.points.enqueue(self.amplitude) {
+            Ok(_) => {},
+            Err(value) => {
+                warn!("[next] error adding to the points queue value: {:?}", value);
+            },
+        };
         self.xyPoints.push([self.t as f64, self.amplitude as f64]);
         if self.xyPoints.len() > self.len {
             self.xyPoints.remove(0);

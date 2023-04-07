@@ -21,7 +21,7 @@ pub struct Interval {
     sleepDelta: Duration,
     waitInterval: u128,
     previous: u128,
-    sleeped: u128,
+    // sleeped: u128,
     limit: u128,
     start: std::time::Instant,
 }
@@ -43,7 +43,7 @@ impl Interval {
             sleepDelta,
             waitInterval,
             previous: 0,
-            sleeped: 0,
+            // sleeped: 0,
             limit: 0,
             start: std::time::Instant::now(),
         }
@@ -59,7 +59,7 @@ impl Interval {
             // self.sleeped += 1;
         }
         // times.push([start.elapsed().as_nanos() - previous, sleeped]);
-        debug!("elapsed : {:?}ns", [self.start.elapsed().as_nanos() - self.previous, self.sleeped]);
+        // debug!("elapsed : {:?}ns", [self.start.elapsed().as_nanos() - self.previous, self.sleeped]);
         self.previous = self.start.elapsed().as_nanos();
         // for t in times {
         //     trace!("at: {:?}", t);

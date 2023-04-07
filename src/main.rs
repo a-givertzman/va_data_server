@@ -1,105 +1,117 @@
 #![allow(non_snake_case)]
+mod circular_queue;
 
-mod input_signal;
-mod analyze_fft;
-mod ui_app;
-mod interval;
+use std::time::Instant;
 
-use log::{
-    // info,
-    // trace,
-    debug,
-    // warn,
-};
-use std::{
-    env,
-    error::Error, 
-    sync::{
-        Arc,
-        Mutex,
-    }, 
-};
+use circular_queue::CircularQueue;
+use heapless::spsc::Queue;
+
+const COUNT: usize = 1000;
+const QSIZE: usize = 16_384;
+const QSIZEADD: usize = QSIZE + 1;
+fn main() {
+    let mut queue: Queue<f64, QSIZEADD> = Queue::new();
+    let mut buf = vec![0.0; QSIZE];
+    {
+        buf.fill(0.0);
+        // println!("buf: {:?}", buf);
+        let start = Instant::now();
+        testQueue(&mut queue, &mut buf);
+        println!("elapsed: {:?}", start.elapsed());
+    }
+    {
+        buf.fill(0.0);
+        // println!("buf: {:?}", buf);
+        let mut cQueue: CircularQueue<f64> = CircularQueue::with_capacity(QSIZE);
+        let start = Instant::now();
+        testCQeque(&mut cQueue, &mut buf);
+        println!("elapsed: {:?}", start.elapsed());
+    }
+    {
+        buf.fill(0.0);
+        // println!("buf: {:?}", buf);
+        let mut cQueue: CircularQueue<f64> = CircularQueue::with_capacity(QSIZE);
+        let start = Instant::now();
+        testCQeque1(&mut cQueue, &mut buf);
+        println!("elapsed: {:?}", start.elapsed());
+    }
+    {
+        buf.fill(0.0);
+        // println!("buf: {:?}", buf);
+        let mut cQueue: CircularQueue<f64> = CircularQueue::with_capacity(QSIZE);
+        let start = Instant::now();
+        testCQeque2(&mut cQueue, &mut buf);
+        println!("elapsed: {:?}", start.elapsed());
+    }
+}
 
 
-use analyze_fft::{AnalizeFft, PI2};
-// use egui::mutex::Mutex;
-use input_signal::InputSignal;
-use ui_app::UiApp;
-
-/// 1_024,   // up to 0.500 KHz, mach more noise 
-/// 2_048,   // up to 1 KHz
-/// 4_096,   // up to 1 KHz
-/// 8_192,   // up to 1 KHz
-/// 16_384,  // up to 5 KHz
-/// 32_768,  // up to 15 KHz
-/// 65_536,  // up to 30 KHz
-fn main() -> Result<(), Box<dyn Error>> {
-    env::set_var("RUST_LOG", "debug");
-    env::set_var("RUST_BACKTRACE", "1");
-    env_logger::init();
-    const N: usize = 16_384;
-    const fIn: f32 = 1000.0000;
-    const PI2f: f32 = PI2 * fIn;
-    let inputSignal = Arc::new(Mutex::new(
-        InputSignal::<N>::new(
-            fIn, 
-            |t| {
-                // debug!("build input signal in thread: {:?}", thread::current().name().unwrap());
-                0.7 * (PI2f * t * 100.0).sin()
-                // + 10.05 * (PI2f * t * 500.0).sin()
-                // + 10.10 * (PI2f * t * 1000.0).sin()
-                // + 10.50 * (PI2f * t * 5000.0).sin()
-                // + 10.60 * (PI2f * t * 6000.0).sin()
-                // + 10.70 * (PI2f * t * 7000.0).sin()
-                + 10.80 * (PI2f * t * 8000.0).sin()
-                // + 0.90 * (PI2 * f * t * 9000.0).sin()
-                // + 1.00 * (PI2 * f * t * 10000.0).sin()
-                // + 1.10 * (PI2 * f * t * 11000.0).sin()
-                // + 1.20 * (PI2 * f * t * 12000.0).sin()
-                // + 1.10 * (PI2 * f * t * 10000.0).sin()
-                // + 1.15 * (PI2 * f * t * 15000.0).sin()
-                // + 1.20 * (PI2 * f * t * 20000.0).sin()
-                // + 1.25 * (PI2 * f * t * 25000.0).sin()
-                // + 1.30 * (PI2 * f * t * 30000.0).sin()
-                // + 1.35 * (PI2 * f * t * 35000.0).sin()
-                // + 1.40 * (PI2 * f * t * 40000.0).sin()
+fn testQueue(queue: &mut Queue<f64, QSIZEADD>, buf: &mut Vec<f64>) {
+    // let mut cloned: Queue<f64, 8>;
+    for i in 0..COUNT {
+        match queue.enqueue(i as f64) {
+            Ok(_) => {},
+            Err(val) => {
+                println!("error adding value: {:?}", val);
             },
-            N,
-            None, // Some(0.0001),
-            )
-    ));
-    InputSignal::run(inputSignal.clone())?;
+        };
+        
+        for (i, item) in queue.iter().enumerate() {
+            buf[i] = *item;
+            // println!("readed buf: {:?}\t{:?}", i, item);
+        }
+        if queue.is_full() {
+            queue.dequeue().unwrap();
+            // println!("dequeue: {:?}", d);
+        }
+        // println!("readed buf: {:?}", &buf);
+        // println!("queue: {:?}", &queue);
+        // let oldest = queue.peek();
+        // println!("readed: {:?}", oldest);    
+    }
+}
 
+fn testCQeque(cQueue: &mut CircularQueue<f64>, buf: &mut [f64]) {
+    // let mut cloned: Queue<f64, 8>;
+    for i in 0..COUNT {
+        cQueue.push(i as f64);
+        
+        for (i, item) in cQueue.iter().enumerate() {
+            buf[i] = *item;
+            // println!("readed buf: {:?}\t{:?}", i, item);
+        }
+        // println!("readed: {:?}", &buf);
+        // println!("queue: {:?}", &cQueue);
+    }
+}
 
-    const fIn1: f32 = 100.0000;
-    // const PI2f1: f32 = PI2 * fIn1;
+fn testCQeque1(cQueue: &mut CircularQueue<f64>, buf: &mut Vec<f64>) {
+    // let mut cloned: Queue<f64, 8>;
+    for i in 0..COUNT {
+        cQueue.push(i as f64);
+        buf.clear();
+        buf.append(
+            &mut Vec::<f64>::from(cQueue.buffer())
+        );
+        // cQueue.buffer().to_owned().clone();
+        // println!("readed: {:?}", &buf);
+        // println!("queue: {:?}", &cQueue);
+    }
+}
 
-    let analyzeFft = Arc::new(Mutex::new(
-        AnalizeFft::new(
-            inputSignal.clone(),
-            fIn1, 
-            16_384,  // up to 5 KHz
-        )
-    ));
-    AnalizeFft::run(analyzeFft.clone())?;
-
-    let uiApp = UiApp::new(
-        inputSignal,
-        analyzeFft,
-    );
-
-    env::set_var("RUST_BACKTRACE", "full");
-    let native_options = eframe::NativeOptions {
-        initial_window_size: Some(egui::Vec2 { x: 1024.0, y: 768.0 }),
-        ..Default::default()
-    };    
-    eframe::run_native(
-        "Rpi-FFT-App", 
-        native_options, 
-        Box::new(|_| Box::new(
-            uiApp,
-        ))    
-    )?;    
-
-    Ok(())
+fn testCQeque2(cQueue: &mut CircularQueue<f64>, buf: &mut Vec<f64>) {
+    // let mut cloned: Queue<f64, 8>;
+    for i in 1..COUNT {
+        cQueue.push(0.0);
+    }
+    for i in 0..COUNT {
+        cQueue.push(i as f64);
+        println!("readed: {:?}   {:?}", buf.len(), cQueue.buffer().len());
+        // buf.clone_from_slice(
+        //     cQueue.buffer()
+        // );
+        // cQueue.buffer().to_owned().clone();
+        // println!("readed: {:?}", &buf);
+        // println!("queue: {:?}", &cQueue);
+    }
 }
