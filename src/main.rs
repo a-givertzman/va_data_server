@@ -3,6 +3,7 @@
 mod input_signal;
 mod analyze_fft;
 mod ui_app;
+mod interval;
 
 use std::{
     env,
@@ -19,14 +20,21 @@ use analyze_fft::{AnalizeFft, PI2};
 use input_signal::InputSignal;
 use ui_app::UiApp;
 
-
+/// 1_024,   // up to 0.500 KHz, mach more noise 
+/// 2_048,   // up to 1 KHz
+/// 4_096,   // up to 1 KHz
+/// 8_192,   // up to 1 KHz
+/// 16_384,  // up to 5 KHz
+/// 32_768,  // up to 15 KHz
+/// 65_536,  // up to 30 KHz
 fn main() -> Result<(), Box<dyn Error>> {
+    const N: usize = 16_384;
     const fIn: f32 = 100.0000;
     const PI2f: f32 = PI2 * fIn;
     let inputSignal = Arc::new(Mutex::new(
-        InputSignal::new(
+        InputSignal::<N>::new(
             fIn, 
-            |t, f| {
+            |t| {
                 // println!("build input signal in thread: {:?}", thread::current().name().unwrap());
                 0.7 * (PI2f * t * 100.0).sin()
                 // + 10.05 * (PI2f * t * 500.0).sin()
@@ -47,13 +55,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 // + 1.35 * (PI2 * f * t * 35000.0).sin()
                 // + 1.40 * (PI2 * f * t * 40000.0).sin()
             },
-            // 1_024,    // up to 0.500 KHz, mach more noise 
-            // 2_048,    // up to 1 KHz
-            // 4_096,    // up to 1 KHz
-            // 8_192,   // up to 1 KHz
-            16_384,  // up to 5 KHz
-            // 32_768,  // up to 15 KHz
-            // 65_536, // up to 30 KHz
+            N,
             None, // Some(0.0001),
             )
     ));

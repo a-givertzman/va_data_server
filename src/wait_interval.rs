@@ -1,77 +1,50 @@
 #![allow(non_snake_case)]
 
 use std::{
-    env,
-    time::Duration, 
+    time::Duration, sync::{Arc, Mutex}, 
 };
 use log::{
-    info,
+    // info,
     // trace,
     debug,
     // warn,
 };
 
-// fn main() {
-//     env::set_var("RUST_LOG", "debug");
-//     env::set_var("RUST_BACKTRACE", "1");
-//     env_logger::init();
-
-//     let f = 10000.0;
-//     let period = 1.0 / f;
-//     info!("f Hz : {:?}", f);
-//     info!("T sec: {:?}", period);
-//     let mut iterations = 0;
-//     Interval::new(
-//         period,
-//         || {
-//             let mut r = vec![];
-//             for i in 0..10 {
-//                 r.push(i);
-//             }
-//             info!("r: {:?}", r);
-//             iterations += 1;
-//             if iterations > 100 {
-
-//             }
-//         }, 
-//     )
-//     .run();
-// }
-
-
 // type BuilderCallback = FnMut();
 
-struct Interval<F>
-    where F: FnMut() {
-    builder: F,
+pub struct Interval {
     period: f64,
     cancel: bool,
+    
+    interval:Duration,
+    sleepDelta:Duration,
+    // exitInterval: ;
 }
-impl<F> Interval<F>
-    where F: FnMut() {
+impl Interval {
     /// 
     /// `builder: fn()` - callback will be called at the start of each iteration
     /// `period`, seconds - looping interval
-    fn new(period: f64, builder: F) -> Self {
+    pub fn new(period: f64, builder: Arc<Mutex<dyn FnMut()>>) -> Self {
+        let interval = Duration::from_secs_f64(self.period);
         Self {
-            builder,
             period,
-            cancel: false
+            cancel: false,
+
+            interval: interval,
+            sleepDelta: Duration::from_secs_f64(self.period / 1000.0),
+            exitInterval: interval.as_nanos(),
         }
     }
     ///
     /// Looped iterations will be started
     pub fn run(&mut self) {
         // let builder = self.builder;
-        let interval = Duration::from_secs_f64(self.period);
-        let sleepDelta = Duration::from_secs_f64(self.period / 1000.0);
-        let exitInterval = interval.as_nanos();
-        debug!("interval : {:?}", interval);
-        debug!("interval ms : {:?}", interval.as_millis());
-        debug!("interval mcs: {:?}", interval.as_micros());
-        debug!("interval ns : {:?}", interval.as_nanos());
-        debug!("sleepDelta : {:?}", sleepDelta);
-        debug!("exitInterval : {:?}ns\n", exitInterval);
+        debug!("interval : {:?}", self.interval);
+        debug!("interval ms : {:?}", self.interval.as_millis());
+        debug!("interval mcs: {:?}", self.interval.as_micros());
+        debug!("interval ns : {:?}", self.interval.as_nanos());
+        debug!("sleepDelta : {:?}", self.sleepDelta);
+        debug!("exitInterval : {:?}ns\n", self.exitInterval);
         // let mut times = vec![];
         let mut prevose = 0;//Duration::ZERO;
         let mut sleeped = 0;
@@ -79,7 +52,7 @@ impl<F> Interval<F>
         let start = std::time::Instant::now();
         prevose = start.elapsed().as_nanos();
         while !self.cancel {
-            (self.builder)();
+            (self.builder.lock().unwrap())();
             limit = exitInterval + prevose;
             while start.elapsed().as_nanos() < limit {
                 std::thread::sleep(sleepDelta);

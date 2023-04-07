@@ -33,10 +33,10 @@ type BuilderCallback = fn(t: f32, f: f32) -> f32;
 
 ///
 /// 
-pub struct AnalizeFft {
+pub struct AnalizeFft<const N: usize> {
     handle: Option<thread::JoinHandle<()>>,
     cancel: bool,
-    pub inputSignal: Arc<Mutex<InputSignal>>,
+    pub inputSignal: Arc<Mutex<InputSignal<N>>>,
     pub f: f32,
     pub period: f32,
     len: usize,
@@ -54,9 +54,9 @@ pub struct AnalizeFft {
     PI2f: f32,
     ready: bool,
 }
-impl AnalizeFft {
+impl<const N: usize> AnalizeFft<N> {
     ///
-    pub fn new(inputSignal: Arc<Mutex<InputSignal>>, f: f32, len: usize) -> Self {
+    pub fn new(inputSignal: Arc<Mutex<InputSignal<N>>>, f: f32, len: usize) -> Self {
         let period = 1.0 / f;
         let delta = period / (len as f32);
         println!("[AnalizeFft] f: {:?} Hz", f);
@@ -93,7 +93,7 @@ impl AnalizeFft {
     }
     ///
     /// Starts in the thread
-    pub fn run(this: Arc<Mutex<Self>>) -> Result<(), Box<dyn Error>> {
+    pub fn run(this: Arc<Mutex<AnalizeFft<N>>>) -> Result<(), Box<dyn Error>> {
         let cancel = this.lock().unwrap().cancel;
         let me = this.clone();
         let handle = Some(

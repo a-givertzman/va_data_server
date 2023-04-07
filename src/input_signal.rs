@@ -10,23 +10,25 @@ use std::{
     thread,
     error::Error, 
 };
+use heapless::spsc::Queue;
+
+use crate::interval::Interval;
 
 // use egui::mutex::Mutex;
 
 pub const PI: f32 = std::f32::consts::PI;
 pub const PI2: f32 = PI * 2.0;
 
-type BuilderCallback = fn(t: f32, f: f32) -> f32;
+// type BuilderCallback = fn(t: f32, f: f32) -> f32;
 
 ///
 /// Emulates analog signal which form can be conigerwd in the `builder` callback
-pub struct InputSignal<F> 
-    where F: FnMut(f32) -> f32 {
+pub struct InputSignal<const N: usize> {
     handle: Option<thread::JoinHandle<()>>,
     cancel: bool,
     pub f: f32,
     pub period: f32,
-    builder: F,
+    builder: fn(f32) -> f32,
     len: usize,
     step: f32,
     pub t: f32,
@@ -35,13 +37,13 @@ pub struct InputSignal<F>
     pub phi: f32,
     /// current amplitude of analog value
     pub amplitude: f32,
+    pub points: Queue<f32, N>,
     pub xyPoints: Vec<[f64; 2]>,
 }
-impl<F> InputSignal<F>
-    where F: FnMut(f32) -> f32 {
+impl<const N: usize> InputSignal<N> {
     ///
     /// Creates new instance
-    pub fn new(f: f32, builder: F, len: usize, step: Option<f32>) -> Self {
+    pub fn new(f: f32, builder: fn(f32) -> f32, len: usize, step: Option<f32>) -> Self {
         let period = 1.0 / f;
         let delta = period / (len as f32);
         println!("[InputSignal] f: {:?} Hz", f);
@@ -63,6 +65,7 @@ impl<F> InputSignal<F>
             i: 0,
             phi: 0.0,
             amplitude: 0.0,
+            points: Queue::new(),
             xyPoints: vec![[0.0, 0.0]],
         }
     }
@@ -73,6 +76,8 @@ impl<F> InputSignal<F>
         let me = this.clone();
         let intervalSeconds = (this.lock().unwrap().period as f64) / (this.lock().unwrap().len as f64);
         let interval = Duration::from_secs_f64(intervalSeconds);
+
+
         println!("[InputSignal] interval {:?} sec", intervalSeconds);
         println!("[InputSignal] interval {:?} ns", interval.as_nanos());
         let handle = Some(
@@ -113,7 +118,7 @@ impl<F> InputSignal<F>
         
         // self.inputFilter.add((self.builder)(t, self.f));
         // let input = self.inputFilter.value();
-        self.amplitude = (self.builder)(self.t, self.f);
+        self.amplitude = (self.builder)(self.t);
         self.xyPoints.push([self.t as f64, self.amplitude as f64]);
         if self.xyPoints.len() > self.len {
             self.xyPoints.remove(0);
