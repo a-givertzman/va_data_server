@@ -123,4 +123,10 @@ impl InputSignal {
     pub fn read(&self) -> [f32; 3] {
         [self.phi, self.t, self.amplitude]
     }
+    ///
+    /// Clones inne buffer into the target
+    /// this method was tested and was very fast 
+    pub fn cloneInto(&self, target: &mut Vec<f32>) {
+        self.points.buffer().clone_into(target);
+    }    
 }

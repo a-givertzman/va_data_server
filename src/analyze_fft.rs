@@ -128,7 +128,7 @@ impl AnalizeFft {
     }
     ///
     pub fn next(&mut self) {
-        self.inputSignal.lock().unwrap().points.buffer().clone_into(&mut self.points);
+        // self.inputSignal.lock().unwrap().cloneInto(&mut self.points);
 
         let current = self.inputSignal.lock().unwrap().read();
         self.phi = current[0];
