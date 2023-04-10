@@ -157,7 +157,7 @@ impl AnalizeFft {
     }
     ///
     fn fftProcess(&mut self) {
-        self.fftComplex = self.inputSignal.lock().unwrap().complex.buffer().clone();
+        self.inputSignal.lock().unwrap().complex.buffer().clone_into(&mut self.fftComplex);
         self.fft.process(&mut self.fftComplex);
         // self.fft.process_with_scratch(&mut self.fftComplex);
     }    
@@ -176,7 +176,8 @@ impl AnalizeFft {
     pub fn complexPoints(&self) -> Vec<[f64; 2]> {
         let mut points: Vec<[f64; 2]> = vec![];
         // let complex = self.complex.buffer().clone();
-        let complex = self.inputSignal.lock().unwrap().complex.buffer().clone();
+        let mut complex = vec![Complex::new(0.0, 0.0)];
+        self.inputSignal.lock().unwrap().complex.buffer().clone_into(&mut complex);
         for i in 0..self.tList.len() {
             let x = complex[i].re as f64;
             let y = complex[i].im as f64;
