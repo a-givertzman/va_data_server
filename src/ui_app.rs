@@ -103,17 +103,19 @@ impl eframe::App for UiApp {
             };
             if ui.button("just button").clicked() {
             }
-            let complexPoints = analyzeFft.complexPoints();
+            let points: Vec<[f64; 2]> = analyzeFft.inputSignal.lock().unwrap().complex.iter().map(|complex| {
+                [complex.re, complex.im]
+            }).collect();
             Plot::new("complex")
             .show(ui, |plotUi| {
                 plotUi.points(
                     Points::new(
-                        complexPoints.clone(),
+                        points.clone(),
                     ).color(Color32::BLUE),
                 );
                 plotUi.line(
                     Line::new(
-                        vec![[0.0; 2], complexPoints[i-1]],
+                        vec![[0.0; 2], points[i-1]],
                     )
                     .color(Color32::YELLOW),
                 )

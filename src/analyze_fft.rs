@@ -124,6 +124,7 @@ impl AnalizeFft {
         self.cancel = true;
     }
     ///
+    /// 
     fn next(&mut self) {
         // self.inputSignal.lock().unwrap().points.buffer().clone_into(&mut self.points);
 
@@ -156,35 +157,13 @@ impl AnalizeFft {
         // );
     }
     ///
+    /// 
     fn fftProcess(&mut self) {
         self.inputSignal.lock().unwrap().complex.buffer().clone_into(&mut self.fftComplex);
         self.fft.process(&mut self.fftComplex);
         // self.fft.process_with_scratch(&mut self.fftComplex);
     }    
     ///
-    // pub fn complex0Points(&self) -> Vec<[f64; 2]> {
-    //     let mut points: Vec<[f64; 2]> = vec![];
-    //     let complex0 = self.complex0.buffer().clone();
-    //     for i in 0..self.tList.len() {
-    //         let x = complex0[i].re as f64;
-    //         let y = complex0[i].im as f64;
-    //         points.push([x, y]);
-    //     }
-    //     points
-    // }    
-    ///
-    pub fn complexPoints(&self) -> Vec<[f64; 2]> {
-        let mut points: Vec<[f64; 2]> = vec![];
-        // let complex = self.complex.buffer().clone();
-        let mut complex = vec![Complex::new(0.0, 0.0)];
-        self.inputSignal.lock().unwrap().complex.buffer().clone_into(&mut complex);
-        for i in 0..self.tList.len() {
-            let x = complex[i].re as f64;
-            let y = complex[i].im as f64;
-            points.push([x, y]);
-        }
-        points
-    }    
     ///
     pub fn fftPoints(&self) -> Vec<[f64; 2]> {
         let mut points: Vec<[f64; 2]> = vec![];
