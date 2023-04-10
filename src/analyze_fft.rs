@@ -44,7 +44,6 @@ pub struct AnalizeFft {
     len: usize,
     pub t: f64,
     pub tList: CircularQueue<f64>,
-    // pub complex0: CircularQueue<Complex<f64>>,
     pub complex0Current: Vec<[f64; 2]>,
     pub complex: CircularQueue<Complex<f64>>,
     pub complexCurrent: Vec<[f64; 2]>,
@@ -52,8 +51,6 @@ pub struct AnalizeFft {
     pub phi: f64,
     pub xyPoints: CircularQueue<[f64; 2]>,
     fft: Arc<dyn Fft<f64>>,
-    // ready: bool,
-    // pub points: Vec<f32>,
 }
 impl AnalizeFft {
     ///
@@ -73,10 +70,6 @@ impl AnalizeFft {
             f,
             period: period,
             len,
-            // step: match step {
-            //     Some(value) => value,
-            //     None => delta,
-            // },
             t: 0.0,
             tList: CircularQueue::with_capacity_fill(len, &mut vec![0.0; len]),
             // complex0: CircularQueue::with_capacity_fill(len, &mut vec![Complex{re: 0.0, im: 0.0}; len]),    //vec![Complex{re: 0.0, im: 0.0}],
