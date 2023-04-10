@@ -79,7 +79,6 @@ impl InputSignal {
             phiList,
             phi: 0.0,
             amplitude: 0.0,
-            // points: CircularQueue::with_capacity(len),
             complex0,
             complex: CircularQueue::with_capacity_fill(len, &mut vec![Complex{re: 0.0, im: 0.0}; len]),
             // test: CircularQueue::with_capacity(16_384),

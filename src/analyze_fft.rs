@@ -162,7 +162,7 @@ impl AnalizeFft {
         let mut points: Vec<[f64; 2]> = vec![];
         let factor = 1.0 / ((self.len / 2) as f64);
         for i in 0..self.tList.len() / 2 {
-            let x = (i as f32) as f64;
+            let x = i as f64;
             let y = (self.fftComplex[i].abs() * factor) as f64;
             points.push([x, 0.0]);
             points.push([x, y]);

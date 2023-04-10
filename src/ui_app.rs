@@ -59,22 +59,25 @@ impl UiApp {
 impl eframe::App for UiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
 
-        let i = self.inputSignal.lock().unwrap().i;
+        let phi = self.inputSignal.lock().unwrap().phi;
+        let f = self.inputSignal.lock().unwrap().f;
+        let period = self.inputSignal.lock().unwrap().period;
         
         egui::Window::new("complex 0").show(ctx, |ui| {
             let mut analyzeFft = self.analyzeFft.lock().unwrap();
             // ui.label(format!("complex 0: '{}'", 0));
-            ui.label(format!(" f: {:?} Hz   T: {:?} sec", analyzeFft.f, analyzeFft.period));
-            ui.label(format!(" pfi: {:?}", analyzeFft.phi * 180.0 / PI));
+            ui.label(format!(" f: {:?} Hz   T: {:?} sec", f, period));
+            ui.label(format!(" pfi: {:?}", phi * 180.0 / PI));
             ui.end_row();
             if ui.button("Stop").clicked() {
                 analyzeFft.cancel();
             }
             Plot::new("complex 0")
             .show(ui, |plotUi| {
-                let points: Vec<[f64; 2]> = analyzeFft.inputSignal.lock().unwrap().complex0.iter().map(|complex| {
+                let points: Vec<[f64; 2]> = self.inputSignal.lock().unwrap().complex0.iter().map(|complex| {
                     [complex.re, complex.im]
                 }).collect();
+                let i = self.inputSignal.lock().unwrap().i;
                 plotUi.points(
                     Points::new(
                         points.clone(),
@@ -85,14 +88,14 @@ impl eframe::App for UiApp {
                         vec![[0.0; 2], points[i-1]],
                     )
                     .color(Color32::YELLOW),
-                )
+                );
             });
         });
         egui::Window::new("input complex").show(ctx, |ui| {
-            let analyzeFft = self.analyzeFft.lock().unwrap();
+            // let analyzeFft = self.analyzeFft.lock().unwrap();
             // ui.label(format!("complex 0: '{}'", 0));
-            ui.label(format!(" f: {:?} Hz   T: {:?} sec", analyzeFft.f, analyzeFft.period));
-            ui.label(format!(" pfi: {:?}", analyzeFft.phi * 180.0 / PI));
+            ui.label(format!(" f: {:?} Hz   T: {:?} sec", f, period));
+            ui.label(format!(" pfi: {:?}", phi * 180.0 / PI));
             ui.end_row();
             let textEdit = ui.text_edit_singleline(&mut self.text);
             if textEdit.changed() {
@@ -103,22 +106,23 @@ impl eframe::App for UiApp {
             };
             if ui.button("just button").clicked() {
             }
-            let points: Vec<[f64; 2]> = analyzeFft.inputSignal.lock().unwrap().complex.iter().map(|complex| {
-                [complex.re, complex.im]
-            }).collect();
             Plot::new("complex")
             .show(ui, |plotUi| {
+                let points: Vec<[f64; 2]> = self.inputSignal.lock().unwrap().complex.buffer().iter().map(|complex| {
+                    [complex.re, complex.im]
+                }).collect();
                 plotUi.points(
                     Points::new(
                         points.clone(),
                     ).color(Color32::BLUE),
                 );
+                let i = self.inputSignal.lock().unwrap().i;
                 plotUi.line(
                     Line::new(
-                        vec![[0.0; 2], points[i-1]],
+                        vec![[0.0; 2], points[i]],
                     )
                     .color(Color32::YELLOW),
-                )
+                );
             });
         });
 
