@@ -1,11 +1,11 @@
 #![allow(non_snake_case)]
 
-// use log::{
+use log::{
     // info,
     // trace,
-    // debug,
+    debug,
     // warn,
-// };
+};
 use std::{
     sync::{
         Arc, 
@@ -38,6 +38,7 @@ pub struct UiApp {
     pub inputSignal: Arc<Mutex<InputSignal>>,
     pub analyzeFft: Arc<Mutex<AnalizeFft>>,
     renderDelay: Duration,
+    text: String,
 }
 
 impl UiApp {
@@ -50,6 +51,7 @@ impl UiApp {
             inputSignal: inputSignal, 
             analyzeFft: analyzeFft,
             renderDelay: renderDelay,
+            text: String::from(""),
         }
     }
 }
@@ -70,9 +72,9 @@ impl eframe::App for UiApp {
         //     Plot::new("complex 0")
         //     .show(ui, |plotUi| {
         //         plotUi.points(
-        //             Points::new(PlotPoints::new(
+        //             Points::new(
         //                 analyzeFft.complex0Points(),
-        //             )).color(Color32::BLUE),
+        //             ).color(Color32::BLUE),
         //         );
         //         plotUi.line(
         //             Line::new(
@@ -88,18 +90,26 @@ impl eframe::App for UiApp {
             ui.label(format!(" f: {:?} Hz   T: {:?} sec", analyzeFft.f, analyzeFft.period));
             ui.label(format!(" pfi: {:?}", analyzeFft.phi * 180.0 / PI));
             ui.end_row();
+            let textEdit = ui.text_edit_singleline(&mut self.text);
+            if textEdit.changed() {
+                debug!("text edited: {:?}", self.text);
+            };
+            if textEdit.lost_focus() {
+                debug!("text editing finished: {:?}", self.text);
+            };
             if ui.button("just button").clicked() {
             }
+            let complexPoints = &analyzeFft.complexPoints();
             Plot::new("complex")
             .show(ui, |plotUi| {
                 plotUi.points(
-                    Points::new(PlotPoints::new(
-                        analyzeFft.complexPoints(),
-                    )).color(Color32::BLUE),
+                    Points::new(
+                        complexPoints.clone(),
+                    ).color(Color32::BLUE),
                 );
                 plotUi.line(
                     Line::new(
-                        analyzeFft.complexCurrent.clone(),
+                        vec![[0.0; 2], complexPoints.last().unwrap().to_owned()],
                     )
                     .color(Color32::YELLOW),
                 )
@@ -120,9 +130,9 @@ impl eframe::App for UiApp {
             }
             Plot::new("inputsignal").show(ui, |plotUi| {
                 plotUi.points(
-                    Points::new(PlotPoints::new(
+                    Points::new(
                         inputSignal.xyPoints.buffer().clone()
-                    )),
+                    ),
                 )
             });
         });
@@ -137,9 +147,9 @@ impl eframe::App for UiApp {
         //     }
         //     Plot::new("input").show(ui, |plotUi| {
         //         plotUi.points(
-        //             Points::new(PlotPoints::new(
+        //             Points::new(
         //                 analyzeFft.xyPoints.buffer().clone(),
-        //             )),
+        //             ),
         //         )
         //     });
         // });
@@ -153,9 +163,9 @@ impl eframe::App for UiApp {
             }
             Plot::new("fft").show(ui, |plotUi| {
                 plotUi.line(
-                    Line::new(PlotPoints::new(
+                    Line::new(
                         points,
-                    )).color(Color32::LIGHT_GREEN),
+                    ).color(Color32::LIGHT_GREEN),
                 )
             });
         });
