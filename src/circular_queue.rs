@@ -39,6 +39,7 @@ extern crate alloc;
 
 #[cfg(has_extern_crate_alloc)]
 use alloc::vec::Vec;
+use core::f32;
 #[cfg(has_extern_crate_alloc)]
 use core::iter::{Chain, Rev};
 #[cfg(has_extern_crate_alloc)]
@@ -101,6 +102,16 @@ impl<T> CircularQueue<T> {
             capacity,
             insertion_index: 0,
         }
+    }
+
+    pub fn with_capacity_fill(capacity: usize, fill: &mut Vec<T>) -> Self {
+        let mut r = Self {
+            data: Vec::with_capacity(capacity),
+            capacity,
+            insertion_index: 0,
+        };
+        r.data.append(fill);
+        r
     }
 
     /// Returns the current number of elements in the queue.

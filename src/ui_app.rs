@@ -6,9 +6,12 @@
     // debug,
     // warn,
 // };
-use std::sync::{
-    Arc, 
-    Mutex
+use std::{
+    sync::{
+        Arc, 
+        Mutex
+    }, 
+    time::Duration
 };
 use egui::{
     plot::{
@@ -21,9 +24,12 @@ use egui::{
 };
 use crate::{
     analyze_fft::{
-        AnalizeFft, PI
+        AnalizeFft
     }, 
-    input_signal::InputSignal
+    input_signal::{
+        InputSignal,
+        PI,
+    }
 };
 
 
@@ -31,16 +37,19 @@ use crate::{
 pub struct UiApp {
     pub inputSignal: Arc<Mutex<InputSignal>>,
     pub analyzeFft: Arc<Mutex<AnalizeFft>>,
+    renderDelay: Duration,
 }
 
 impl UiApp {
     pub fn new(
         inputSignal: Arc<Mutex<InputSignal>>, 
-        analyzeFft: Arc<Mutex<AnalizeFft>>
+        analyzeFft: Arc<Mutex<AnalizeFft>>,
+        renderDelay: Duration,
     ) -> Self {
         Self {
             inputSignal: inputSignal, 
             analyzeFft: analyzeFft,
+            renderDelay: renderDelay,
         }
     }
 }
@@ -49,30 +58,30 @@ impl eframe::App for UiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
 
         
-        egui::Window::new("complex 0").show(ctx, |ui| {
-            let mut analyzeFft = self.analyzeFft.lock().unwrap();
-            // ui.label(format!("complex 0: '{}'", 0));
-            ui.label(format!(" f: {:?} Hz   T: {:?} sec", analyzeFft.f, analyzeFft.period));
-            ui.label(format!(" pfi: {:?}", analyzeFft.phi * 180.0 / PI));
-            ui.end_row();
-            if ui.button("Stop").clicked() {
-                analyzeFft.cancel();
-            }
-            Plot::new("complex 0")
-            .show(ui, |plotUi| {
-                plotUi.points(
-                    Points::new(PlotPoints::new(
-                        analyzeFft.complex0Points(),
-                    )).color(Color32::BLUE),
-                );
-                plotUi.line(
-                    Line::new(
-                        analyzeFft.complex0Current.clone(),
-                    )
-                    .color(Color32::YELLOW),
-                )
-            });
-        });
+        // egui::Window::new("complex 0").show(ctx, |ui| {
+        //     let mut analyzeFft = self.analyzeFft.lock().unwrap();
+        //     // ui.label(format!("complex 0: '{}'", 0));
+        //     ui.label(format!(" f: {:?} Hz   T: {:?} sec", analyzeFft.f, analyzeFft.period));
+        //     ui.label(format!(" pfi: {:?}", analyzeFft.phi * 180.0 / PI));
+        //     ui.end_row();
+        //     if ui.button("Stop").clicked() {
+        //         analyzeFft.cancel();
+        //     }
+        //     Plot::new("complex 0")
+        //     .show(ui, |plotUi| {
+        //         plotUi.points(
+        //             Points::new(PlotPoints::new(
+        //                 analyzeFft.complex0Points(),
+        //             )).color(Color32::BLUE),
+        //         );
+        //         plotUi.line(
+        //             Line::new(
+        //                 analyzeFft.complex0Current.clone(),
+        //             )
+        //             .color(Color32::YELLOW),
+        //         )
+        //     });
+        // });
         egui::Window::new("input complex").show(ctx, |ui| {
             let analyzeFft = self.analyzeFft.lock().unwrap();
             // ui.label(format!("complex 0: '{}'", 0));
@@ -112,28 +121,28 @@ impl eframe::App for UiApp {
             Plot::new("inputsignal").show(ui, |plotUi| {
                 plotUi.points(
                     Points::new(PlotPoints::new(
-                        inputSignal.xyPoints.clone()
+                        inputSignal.xyPoints.buffer().clone()
                     )),
                 )
             });
         });
 
-        egui::Window::new("AnalyzeFft input").show(ctx, |ui| {
-            let analyzeFft = self.analyzeFft.lock().unwrap();
-            ui.label(format!(" t: {:?}", analyzeFft.t.last().unwrap()));
-            ui.label(format!("origin length: {}", analyzeFft.origin.len()));
-            ui.label(format!("xyPoints length: {}", analyzeFft.xyPoints.len()));
-            // ui.end_row();
-            if ui.button("just button").clicked() {
-            }
-            Plot::new("input").show(ui, |plotUi| {
-                plotUi.points(
-                    Points::new(PlotPoints::new(
-                        analyzeFft.xyPoints.clone(),
-                    )),
-                )
-            });
-        });
+        // egui::Window::new("AnalyzeFft input").show(ctx, |ui| {
+        //     let analyzeFft = self.analyzeFft.lock().unwrap();
+        //     ui.label(format!(" t: {:?}", analyzeFft.t));
+        //     ui.label(format!("t length: {}", analyzeFft.tList.len()));
+        //     ui.label(format!("xyPoints length: {}", analyzeFft.xyPoints.len()));
+        //     // ui.end_row();
+        //     if ui.button("just button").clicked() {
+        //     }
+        //     Plot::new("input").show(ui, |plotUi| {
+        //         plotUi.points(
+        //             Points::new(PlotPoints::new(
+        //                 analyzeFft.xyPoints.buffer().clone(),
+        //             )),
+        //         )
+        //     });
+        // });
         egui::Window::new("fft").show(ctx, |ui| {
             let analyzeFft = self.analyzeFft.lock().unwrap();
             // ui.label(format!("new fft: '{}'", 0));
@@ -150,45 +159,7 @@ impl eframe::App for UiApp {
                 )
             });
         });
+        std::thread::sleep(self.renderDelay);
         ctx.request_repaint();
     }
 }
-
-
-
-// egui::Window::new("Main thread").show(ctx, |ui| {
-//     ui.label(format!("Current threads: '{}'", 0));
-//     let response = ui.add(egui::TextEdit::singleline(&mut self.freqFactorStr));
-//     if response.changed() {
-//         // …
-//     }            
-//     if ui.button("Add freq").clicked() {
-//         let freqFactor: f64 = self.freqFactorStr.parse().unwrap();
-//         self.inBuff.addFreq(freqFactor)
-//     }
-//     let plot = Plot::new("input");
-//     plot.show(ui, |plotUi| {
-//         plotUi.points(
-//             Points::new(PlotPoints::new(
-//                 inPoints(&self.inBuff.content, self.len),
-//         )),
-//         )
-//     });
-// });
-// egui::Window::new("output").show(ctx, |ui| {
-//     ui.label(format!("output: '{}'", 0));
-//     if ui.button("just button").clicked() {
-//     }
-//     let mut planner = FftPlanner::new();
-//     let fft = planner.plan_fft_forward(self.len.into());
-//     let mut outBuff = self.inBuff.content.clone();
-//     fft.process(&mut outBuff);
-//     let plot = Plot::new("fft Output");
-//     plot.show(ui, |plotUi| {
-//         plotUi.points(
-//             Points::new(PlotPoints::new(
-//                 inPoints(&outBuff, self.len),
-//         )),
-//         )
-//     });
-// });

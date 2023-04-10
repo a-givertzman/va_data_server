@@ -1,11 +1,11 @@
 #![allow(non_snake_case)]
+#![allow(non_upper_case_globals)]
 
+mod circular_queue;
 mod input_signal;
 mod analyze_fft;
 mod ui_app;
 mod interval;
-mod circular_queue;
-
 // use log::{
     // info,
     // trace,
@@ -18,52 +18,44 @@ use std::{
     sync::{
         Arc,
         Mutex,
-    }, 
+    }, time::Duration, 
 };
-
-
-use analyze_fft::{AnalizeFft, PI2};
-// use egui::mutex::Mutex;
+use analyze_fft::AnalizeFft;
 use input_signal::InputSignal;
 use ui_app::UiApp;
 
-/// 1_024,   // up to 0.500 KHz, mach more noise 
-/// 2_048,   // up to 1 KHz
-/// 4_096,   // up to 1 KHz
-/// 8_192,   // up to 1 KHz
-/// 16_384,  // up to 5 KHz
-/// 32_768,  // up to 15 KHz
-/// 65_536,  // up to 30 KHz
+///
+/// 
 fn main() -> Result<(), Box<dyn Error>> {
     env::set_var("RUST_LOG", "debug");
     env::set_var("RUST_BACKTRACE", "1");
     env_logger::init();
-    const N: usize = 16_384;
-    const fIn: f32 = 1000.0000;
-    const PI2f: f32 = PI2 * fIn;
+    const N: usize = 32_768;
+    const sampleRate: f32 = 1_024.0000;
+    // const PI2f: f64 = (PI2 as f64) * sampleRate;
     let inputSignal = Arc::new(Mutex::new(
         InputSignal::new(
-            fIn, 
-            |t| {
+            sampleRate, 
+            |phi| {
                 // debug!("build input signal in thread: {:?}", thread::current().name().unwrap());
-                0.7 * (PI2f * t * 100.0).sin()
-                // + 10.05 * (PI2f * t * 500.0).sin()
-                // + 10.10 * (PI2f * t * 1000.0).sin()
-                // + 10.50 * (PI2f * t * 5000.0).sin()
-                // + 10.60 * (PI2f * t * 6000.0).sin()
-                // + 10.70 * (PI2f * t * 7000.0).sin()
-                + 10.80 * (PI2f * t * 8000.0).sin()
-                // + 0.90 * (PI2 * f * t * 9000.0).sin()
-                // + 1.00 * (PI2 * f * t * 10000.0).sin()
-                // + 1.10 * (PI2 * f * t * 11000.0).sin()
-                // + 1.20 * (PI2 * f * t * 12000.0).sin()
-                // + 1.10 * (PI2 * f * t * 10000.0).sin()
-                // + 1.15 * (PI2 * f * t * 15000.0).sin()
-                // + 1.20 * (PI2 * f * t * 20000.0).sin()
-                // + 1.25 * (PI2 * f * t * 25000.0).sin()
-                // + 1.30 * (PI2 * f * t * 30000.0).sin()
-                // + 1.35 * (PI2 * f * t * 35000.0).sin()
-                // + 1.40 * (PI2 * f * t * 40000.0).sin()
+                10.0 * (phi * 10.0).sin()
+                + 10.005 * (phi * 50.0).sin()
+                + 10.006 * (phi * 100.0).sin()
+                + 10.007 * (phi * 500.0).sin()
+                + 10.10 * (phi * 1000.0).sin()
+                + 10.50 * (phi * 5000.0).sin()
+                + 10.60 * (phi * 6000.0).sin()
+                + 60.70 * (phi * 7000.0).sin()
+                + 10.80 * (phi * 8000.0).sin()
+                + 10.90 * (phi * 9000.0).sin()
+                + 11.00 * (phi * 10000.0).sin()
+                + 11.00 * (phi * 11000.0).sin()
+                + 12.00 * (phi * 12000.0).sin()
+                + 13.00 * (phi * 13000.0).sin()
+                + 14.00 * (phi * 14000.0).sin()
+                + 15.00 * (phi * 15000.0).sin()
+                + 16.00 * (phi * 16000.0).sin()
+
             },
             N,
             None, // Some(0.0001),
@@ -72,14 +64,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     InputSignal::run(inputSignal.clone())?;
 
 
-    const fIn1: f32 = 100.0000;
-    // const PI2f1: f32 = PI2 * fIn1;
-
     let analyzeFft = Arc::new(Mutex::new(
         AnalizeFft::new(
             inputSignal.clone(),
-            fIn1, 
-            16_384,  // up to 5 KHz
+            sampleRate, 
+            N,
         )
     ));
     AnalizeFft::run(analyzeFft.clone())?;
@@ -87,8 +76,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let uiApp = UiApp::new(
         inputSignal,
         analyzeFft,
+        Duration::from_secs_f64(1.0/60.0),
     );
-
     env::set_var("RUST_BACKTRACE", "full");
     let native_options = eframe::NativeOptions {
         initial_window_size: Some(egui::Vec2 { x: 1024.0, y: 768.0 }),
@@ -101,6 +90,5 @@ fn main() -> Result<(), Box<dyn Error>> {
             uiApp,
         ))    
     )?;    
-
     Ok(())
 }
