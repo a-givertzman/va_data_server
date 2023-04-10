@@ -43,7 +43,8 @@ pub struct InputSignal {
     pub phi: f64,
     /// current amplitude of analog value
     pub amplitude: f64,
-    pub points: CircularQueue<f64>,
+    // pub points: CircularQueue<f64>,
+    pub complex0: Vec<Complex<f64>>,
     pub complex: CircularQueue<Complex<f64>>,
     // pub test: CircularQueue<[f64; 16_384]>,
     pub xyPoints: CircularQueue<[f64; 2]>,
@@ -56,6 +57,7 @@ impl InputSignal {
         let delta = period / (len as f64);
         let iToNList: Vec<f64> = (0..len).into_iter().map(|i| {(i as f64) / (len as f64)}).collect();
         let phiList: Vec<f64> = iToNList.clone().into_iter().map(|iToN| {PI2 * iToN}).collect();
+        let mut c0: Vec<Complex<f64>> = (0..len).into_iter().map(|i| {Complex {re: phiList[i].cos(), im: phiList[i].sin()}}).collect();
         debug!("[InputSignal] f: {:?} Hz", f);
         debug!("[InputSignal] T: {:?} sec", period);
         debug!("[InputSignal] N: {:?} poins", len);
@@ -77,7 +79,8 @@ impl InputSignal {
             phiList: phiList,
             phi: 0.0,
             amplitude: 0.0,
-            points: CircularQueue::with_capacity(len),
+            // points: CircularQueue::with_capacity(len),
+            complex0: c0,
             complex: CircularQueue::with_capacity_fill(len, &mut vec![Complex{re: 0.0, im: 0.0}; len]),
             // test: CircularQueue::with_capacity(16_384),
             xyPoints: CircularQueue::with_capacity_fill(len, &mut vec![[0.0, 0.0]; len]),
@@ -118,11 +121,11 @@ impl InputSignal {
         // self.inputFilter.add((self.builder)(t, self.f));
         // let input = self.inputFilter.value();
         self.amplitude = (self.builder)(self.phi);
-        self.points.push(self.amplitude);
+        // self.points.push(self.amplitude);
         self.complex.push(
             Complex {
-                re: self.amplitude * (self.phi).cos(), 
-                im: self.amplitude * (self.phi).sin(), 
+                re: self.amplitude * self.complex0[self.i].re, 
+                im: self.amplitude * self.complex0[self.i].im, 
             },
         );
         self.xyPoints.push([self.t as f64, self.amplitude as f64]);
