@@ -45,7 +45,6 @@ pub struct InputSignal {
     pub complex: CircularQueue<Complex<f64>>,
     pub xyPoints: CircularQueue<[f64; 2]>,
     // pub test: CircularQueue<[f64; 16_384]>,
-    pub xyPoints: CircularQueue<[f64; 2]>,
     inputFilter: AverageFilter<f64>,
 }
 impl InputSignal {
@@ -126,7 +125,7 @@ impl InputSignal {
         );
         self.amplitude = self.inputFilter.value();
 
-        self.points.push(self.amplitude);
+        // self.points.push(self.amplitude);
         self.complex.push(
             Complex {
                 re: self.amplitude * self.complex0[self.i].re, 
