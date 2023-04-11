@@ -3,6 +3,7 @@
 
 mod circular_queue;
 mod input_signal;
+mod average_filter;
 mod analyze_fft;
 mod ui_app;
 mod interval;
@@ -31,7 +32,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     env::set_var("RUST_BACKTRACE", "1");
     env_logger::init();
     const N: usize = 32_768;
-    const sampleRate: f32 = 1_024.0000;
+    const sampleRate: f32 = 2_048.0000;
     // const PI2f: f64 = (PI2 as f64) * sampleRate;
     let inputSignal = Arc::new(Mutex::new(
         InputSignal::new(

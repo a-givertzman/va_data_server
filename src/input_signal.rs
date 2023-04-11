@@ -6,7 +6,6 @@ use log::{
     debug,
     // warn,
 };
-use rustfft::num_complex::Complex;
 use std::{
     sync::{
         Arc, 
@@ -15,9 +14,11 @@ use std::{
     thread,
     error::Error, 
 };
+use rustfft::num_complex::Complex;
 use crate::{
     interval::Interval, 
-    circular_queue::CircularQueue
+    circular_queue::CircularQueue,
+    average_filter::AverageFilter,
 };
 
 pub const PI: f64 = std::f64::consts::PI;
@@ -44,6 +45,8 @@ pub struct InputSignal {
     pub complex: CircularQueue<Complex<f64>>,
     pub xyPoints: CircularQueue<[f64; 2]>,
     // pub test: CircularQueue<[f64; 16_384]>,
+    pub xyPoints: CircularQueue<[f64; 2]>,
+    inputFilter: AverageFilter<f64>,
 }
 impl InputSignal {
     ///
@@ -83,6 +86,7 @@ impl InputSignal {
             complex: CircularQueue::with_capacity_fill(len, &mut vec![Complex{re: 0.0, im: 0.0}; len]),
             // test: CircularQueue::with_capacity(16_384),
             xyPoints: CircularQueue::with_capacity_fill(len, &mut vec![[0.0, 0.0]; len]),
+            inputFilter: AverageFilter::new(3),
         }
     }
     ///
@@ -117,10 +121,12 @@ impl InputSignal {
         self.phi = self.phiList[self.i];
         // debug!("i: {:?}   phi: {:?}", self.i, self.phi);
         
-        // self.inputFilter.add((self.builder)(t, self.f));
-        // let input = self.inputFilter.value();
-        self.amplitude = (self.builder)(self.phi);
-        // self.points.push(self.amplitude);
+        self.inputFilter.add(
+            (self.builder)(self.phi),
+        );
+        self.amplitude = self.inputFilter.value();
+
+        self.points.push(self.amplitude);
         self.complex.push(
             Complex {
                 re: self.amplitude * self.complex0[self.i].re, 
