@@ -3,7 +3,7 @@
 
 mod circular_queue;
 mod input_signal;
-mod average_filter;
+mod dsp_filters;
 mod analyze_fft;
 mod ui_app;
 mod interval;
@@ -46,7 +46,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 + 10.10 * (phi * 1000.0).sin()
                 + 10.50 * (phi * 5000.0).sin()
                 + 10.60 * (phi * 6000.0).sin()
-                + 60.70 * (phi * 7000.0).sin()
+                + 10.70 * (phi * 7000.0).sin()
                 + 10.80 * (phi * 8000.0).sin()
                 + 10.90 * (phi * 9000.0).sin()
                 + 11.00 * (phi * 10000.0).sin()
@@ -56,7 +56,12 @@ fn main() -> Result<(), Box<dyn Error>> {
                 + 14.00 * (phi * 14000.0).sin()
                 + 15.00 * (phi * 15000.0).sin()
                 + 16.00 * (phi * 16000.0).sin()
-
+                + 17.00 * (phi * 17000.0).sin()
+                + 18.00 * (phi * 18000.0).sin()
+                + 19.00 * (phi * 19000.0).sin()
+                + 30.00 * (phi * 30000.0).sin()
+                + 35.00 * (phi * 35000.0).sin()
+                + 40.00 * (phi * 40000.0).sin()
             },
             N,
             None, // Some(0.0001),

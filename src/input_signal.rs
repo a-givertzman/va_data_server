@@ -18,7 +18,10 @@ use rustfft::num_complex::Complex;
 use crate::{
     interval::Interval, 
     circular_queue::CircularQueue,
-    average_filter::AverageFilter,
+    dsp_filters::{
+        average_filter::AverageFilter,
+        slp_filter::SlpFilter,
+    }
 };
 
 pub const PI: f64 = std::f64::consts::PI;
@@ -45,7 +48,7 @@ pub struct InputSignal {
     pub complex: CircularQueue<Complex<f64>>,
     pub xyPoints: CircularQueue<[f64; 2]>,
     // pub test: CircularQueue<[f64; 16_384]>,
-    inputFilter: AverageFilter<f64>,
+    inputFilter: SlpFilter<f64>,
 }
 impl InputSignal {
     ///
@@ -85,7 +88,7 @@ impl InputSignal {
             complex: CircularQueue::with_capacity_fill(len, &mut vec![Complex{re: 0.0, im: 0.0}; len]),
             // test: CircularQueue::with_capacity(16_384),
             xyPoints: CircularQueue::with_capacity_fill(len, &mut vec![[0.0, 0.0]; len]),
-            inputFilter: AverageFilter::new(3),
+            inputFilter: SlpFilter::new(4),
         }
     }
     ///
@@ -124,6 +127,7 @@ impl InputSignal {
             (self.builder)(self.phi),
         );
         self.amplitude = self.inputFilter.value();
+        // self.amplitude = (self.builder)(self.phi);
 
         // self.points.push(self.amplitude);
         self.complex.push(

@@ -4,13 +4,14 @@ use std::convert::From;
 
 use crate::circular_queue::CircularQueue;
 
+
+///
+/// 
 pub struct AverageFilter<T> 
 where 
-    T: Clone + From<u32>,
+    T: Clone + From<u32> + From<f64>,
     T: std::ops::Add<Output = T>,
     T: std::iter::Sum + std::ops::Div<Output = T>,
-    f32: Into<T>,
-    f64: Into<T>,
 {
     len: usize,
     values: CircularQueue<T>,
@@ -18,17 +19,15 @@ where
 
 impl<T> AverageFilter<T> 
 where 
-    T: Clone + From<u32>,
+    T: Clone + From<u32> + From<f64>,
     T: std::ops::Add<Output = T>,
     T: std::iter::Sum + std::ops::Div<Output = T>,
-    f32: Into<T>,
-    f64: Into<T>,
 {
     ///
     pub fn new(len: usize) -> Self {
         Self {
             len,
-            values: CircularQueue::with_capacity_fill(len, &mut vec![0.0.into(); len]),
+            values: CircularQueue::with_capacity_fill(len, &mut vec![T::from(0.0); len]),
         }
     }
     ///
@@ -41,6 +40,5 @@ where
         let value = iter.sum::<T>();
         let k = T::from(self.len as u32);
         value / k
-        // self.values.buffer().iter().sum::<T>() / (self.len.into())
     }
 }
