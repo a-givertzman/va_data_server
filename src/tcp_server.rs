@@ -4,6 +4,10 @@ use log::{
     debug,
     warn,
 };
+use serde::{
+    Serialize,
+    Deserialize,
+};
 use std::{
     net::{
         SocketAddr, 
@@ -12,7 +16,7 @@ use std::{
     }, 
     io::{
         BufReader, 
-        BufRead, Read,
+        BufRead, Read, Write,
     }, 
     error::Error, 
     time::Duration,
@@ -84,18 +88,56 @@ impl TcpServer {
                     warn!("[TcpServer] TcpStream read error: {:#?}", err);
                 },
             };
-            // let buf_reader = BufReader::new(&mut stream);
-            // let http_request: Vec<_> = buf_reader
-            //     .lines()
-            //     .map(|result| result.unwrap())
-            //     .take_while(|line| !line.is_empty())
-            //     .collect();
-        
-            // println!("Request: {:#?}", http_request);
-            let string = String::from_utf8_lossy(&buf);
             // println!("buf: {:#?}", buf);
-            println!("string: {:#?}", string);
+            let parts = buf.split(|b| {*b == EOF});
+            let bytes: Vec<_> = parts.take(1).collect();
+            // debug!("bytes: {:#?}", bytes[0]);
+            let mut point = DsPoint::fromBytes(bytes[0]);
+            debug!("point: {:#?}", point);
             std::thread::sleep(self.reconnectDelay);
+            point.value = point.value + 1;
+            let jsonString = point.toJson();
+            match jsonString {
+                Ok(value) => {
+                    stream.write(value.as_bytes()).unwrap();
+                },
+                Err(err) => {
+                    warn!("error converting point to json: {:?},\n\tdetales: {:?}", point, err)
+                },
+            }
         }
+    }
+}
+
+
+const EOF: u8 = 4;
+
+#[derive(Debug, Deserialize, Serialize)]
+struct DsPoint {
+    class: String,
+    #[serde(rename(deserialize = "type", serialize = "type"))]
+    datatype: String,
+    name: String,
+    value: i64,
+    status: i64,
+    timestamp: String,
+}
+impl DsPoint {
+    pub fn fromBytes(bytes: &[u8]) -> Self {
+        let string = String::from_utf8_lossy(&bytes).into_owned();
+        // debug!("string: {:#?}", string);
+        // let eof = String::from_utf8_lossy(&[4]).into_owned();
+        // println!("eof: {:#?}", eof);
+        // let parts: Vec<&str> = string.split(&eof).collect();
+        // debug!("parts: {:#?}", parts);
+        // let pointJson = parts[0];
+        let point: DsPoint = serde_json::from_str(&string).unwrap();
+        // debug!("point: {:#?}", point);
+        point
+    }
+    pub fn toJson(&self) -> Result<String, serde_json::error::Error>{
+        let result = serde_json::to_string(&self);
+        debug!("point: {:#?}", result);
+        result
     }
 }
