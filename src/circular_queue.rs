@@ -1,3 +1,4 @@
+// #![doc(html_root_url = "https://docs.rs/circular-queue/0.2.6")]
 //! A circular buffer-like queue.
 //!
 //! The `CircularQueue<T>` is created with a set capacity, then items are pushed in. When the queue
@@ -32,7 +33,6 @@
 //! ```
 
 #![cfg_attr(has_extern_crate_alloc, no_std)]
-#![doc(html_root_url = "https://docs.rs/circular-queue/0.2.6")]
 
 #[cfg(has_extern_crate_alloc)]
 extern crate alloc;

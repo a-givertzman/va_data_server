@@ -7,6 +7,7 @@ mod dsp_filters;
 mod analyze_fft;
 mod ui_app;
 mod interval;
+mod tcp_server;
 // use log::{
     // info,
     // trace,
@@ -24,6 +25,7 @@ use std::{
 use analyze_fft::AnalizeFft;
 use input_signal::InputSignal;
 use ui_app::UiApp;
+use crate::tcp_server::TcpServer;
 
 ///
 /// 
@@ -31,6 +33,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     env::set_var("RUST_LOG", "debug");
     env::set_var("RUST_BACKTRACE", "1");
     env_logger::init();
+
+
+    let mut tcpSrv = TcpServer::new(
+        "127.0.0.1:5180",
+    );
+    tcpSrv.run();
+
     const N: usize = 32_768;
     const sampleRate: f32 = 2_048.0000;
     // const PI2f: f64 = (PI2 as f64) * sampleRate;

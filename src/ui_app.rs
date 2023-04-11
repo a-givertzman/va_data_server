@@ -68,6 +68,7 @@ impl eframe::App for UiApp {
             // ui.label(format!("complex 0: '{}'", 0));
             ui.label(format!(" f: {:?} Hz   T: {:?} sec", f, period));
             ui.label(format!(" pfi: {:?}", phi * 180.0 / PI));
+            ui.label(format!(" complex 0 len: {:?}", self.inputSignal.lock().unwrap().complex0.len()));
             ui.end_row();
             if ui.button("Stop").clicked() {
                 analyzeFft.cancel();
