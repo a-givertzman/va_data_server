@@ -10,7 +10,8 @@ use std::{
     net::{
         SocketAddr, 
         TcpStream, 
-        TcpListener,
+        TcpListener, 
+        Shutdown,
     }, 
     io::{
         // BufReader, 
@@ -179,6 +180,14 @@ impl TcpServer {
             phi = PI2 * (i as f64) / (len as f64);
             thread::sleep(Duration::from_secs_f64(delay));
         }
+        match stream.shutdown(Shutdown::Both) {
+            Ok(_) => {
+                warn!("[TcpServer] sendToConnection stream.shutdown done");
+            },
+            Err(err) => {
+                warn!("[TcpServer] sendToConnection stream.shutdown error: {:?}", err);
+            },
+        };
         warn!("[TcpServer] sendToConnection exit");
     }
     ///
@@ -187,7 +196,7 @@ impl TcpServer {
         match stream.write(bytes) {
             Ok(_) => Ok(()),
             Err(err) => {
-                warn!("TcpStream write error, data: {:?},\n\tdetales: {:?}", bytes, err);
+                warn!("[TcpStream] write error, data: {:?},\n\tdetales: {:?}", bytes, err);
                 Err(Box::new(err))
             },
         }
@@ -196,24 +205,27 @@ impl TcpServer {
     /// Listening incoming messages from remote client
     fn listenStream(&mut self, stream: &mut TcpStream) {
         debug!("[TcpServer] start to reading messages...");
-        loop {
+        let mut cancel = false;
+        while !cancel {
             let mut buf = [0; 256];
             match stream.read(&mut buf) {
                 Ok(bytesRead) => {
                     debug!("[TcpServer] bytes read: {:#?}", bytesRead);
+                    cancel = bytesRead <= 0;
                 },
                 Err(err) => {
                     warn!("[TcpServer] TcpStream read error: {:#?}", err);
-                    break;
+                    cancel = true;
                 },
             };
-            // debug!("buf: {:#?}", buf);
+            // debug!("[TcpServer] buf: {:#?}", buf);
             let parts = buf.split(|b| {*b == EOF});
             let bytes: Vec<_> = parts.take(1).collect();
-            // debug!("bytes: {:#?}", bytes[0]);
+            // debug!("[TcpServer] bytes: {:#?}", bytes[0]);
             let point = DsPoint::<f64>::fromBytes(bytes[0]);
-            debug!("received point: {:#?}", point);
+            debug!("[TcpServer] received point: {:#?}", point);
             thread::sleep(self.reconnectDelay);
+            if cancel { break };
         }
         warn!("[TcpServer] listenStream exit");
     }
