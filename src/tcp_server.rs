@@ -146,7 +146,11 @@ impl TcpServer {
             points = vec![
                 // self.buildPoint("Platform.i", i as f64),
                 self.buildPoint("Platform.phi", phi),
-                self.buildPoint("Platform.sin", 100.0 * (1.0 * phi).sin()),
+                self.buildPoint(
+                    "Platform.sin", 
+                    100.0 * (1.0 * phi).sin()
+                    + 100.0 * (2.0 * phi).sin()
+                ),
             ];
             for point in points {
                 // debug!("sending point: {:#?}", point);
