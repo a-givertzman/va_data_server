@@ -21,6 +21,14 @@ use std::{
     error::Error, 
     time::Duration,
 };
+use std::time::SystemTime;
+use chrono::{
+    DateTime,
+    Utc,
+    SecondsFormat,
+};
+
+use crate::input_signal::PI2;
 
 pub struct TcpServer {
     addr: SocketAddr,
@@ -64,7 +72,7 @@ impl TcpServer {
                     let stream = result.unwrap();
                     info!("[TcpServer] incoming connection: {:?}", stream.peer_addr());
                     // stream.
-                    self.handle_connection(stream);
+                    self.handleConnection(stream);
                 }
             },
             None => {
@@ -74,8 +82,53 @@ impl TcpServer {
     }
     ///
     /// 
-    fn handle_connection(&mut self, mut stream: TcpStream) {
-        debug!("[TcpServer] trying to read bytes...");
+    fn handleConnection(&mut self, mut stream: TcpStream) {
+        self.listenConnection(&mut stream);
+        self.sendToConnection(&mut stream);
+    }
+    ///
+    /// 
+    fn buildPoint(&self, value: f64) -> DsPoint<f64> {
+        DsPoint {
+            class: String::from("commonCmd"),
+            datatype: String::from("real"),
+            name: String::from("/line1/ied12/db902_panel_controls/Platform.SensorMRU"),
+            value: value,
+            status: 0,
+            timestamp: DateTime::<Utc>::from(SystemTime::now()).to_rfc3339_opts(SecondsFormat::Micros, true),
+        }
+    }
+    ///
+    /// Sending messages to remote client
+    fn sendToConnection(&mut self, stream: &mut TcpStream) {
+        debug!("[TcpServer] start to sending messages...");
+        // stream.set_nonblocking(true).expect("set_nonblocking call failed");
+        let delay = 1.0 / 16_384.0;
+        let phi = 0.0;
+        println!("sending delay: {:#?}", delay);
+        let now: DateTime<Utc> = SystemTime::now().into();
+        println!("first: {:?}", now.to_rfc3339_opts(SecondsFormat::Micros, true));
+        let mut point = self.buildPoint(phi);
+        loop {
+            // println!("buf: {:#?}", buf);
+            point = self.buildPoint(phi);
+            debug!("sending point: {:#?}", point);
+            let jsonString = point.toJson();
+            match jsonString {
+                Ok(value) => {
+                    stream.write(value.as_bytes()).unwrap();
+                },
+                Err(err) => {
+                    warn!("error converting point to json: {:?},\n\tdetales: {:?}", point, err)
+                },
+            }
+            std::thread::sleep(Duration::from_secs_f64(delay));
+        }
+    }
+    ///
+    /// Listening incoming messages from remote client
+    fn listenConnection(&mut self, stream: &mut TcpStream) {
+        debug!("[TcpServer] start to reading messages...");
         // stream.set_nonblocking(true).expect("set_nonblocking call failed");
         loop {
             let mut buf = [0; 256];
@@ -92,19 +145,9 @@ impl TcpServer {
             let parts = buf.split(|b| {*b == EOF});
             let bytes: Vec<_> = parts.take(1).collect();
             // debug!("bytes: {:#?}", bytes[0]);
-            let mut point = DsPoint::fromBytes(bytes[0]);
-            debug!("point: {:#?}", point);
+            let point = DsPoint::<f64>::fromBytes(bytes[0]);
+            debug!("received point: {:#?}", point);
             std::thread::sleep(self.reconnectDelay);
-            point.value = point.value + 1;
-            let jsonString = point.toJson();
-            match jsonString {
-                Ok(value) => {
-                    stream.write(value.as_bytes()).unwrap();
-                },
-                Err(err) => {
-                    warn!("error converting point to json: {:?},\n\tdetales: {:?}", point, err)
-                },
-            }
         }
     }
 }
@@ -113,25 +156,29 @@ impl TcpServer {
 const EOF: u8 = 4;
 
 #[derive(Debug, Deserialize, Serialize)]
-struct DsPoint {
+struct DsPoint<T> {
     class: String,
     #[serde(rename(deserialize = "type", serialize = "type"))]
     datatype: String,
     name: String,
-    value: i64,
+    value: T,
     status: i64,
     timestamp: String,
 }
-impl DsPoint {
+impl<'a, T> DsPoint<T> 
+where
+    for<'de> T: Deserialize<'de> + 'a,
+    T: Serialize + 'a,
+{
     pub fn fromBytes(bytes: &[u8]) -> Self {
         let string = String::from_utf8_lossy(&bytes).into_owned();
-        // debug!("string: {:#?}", string);
+        debug!("string: {:#?}", string);
         // let eof = String::from_utf8_lossy(&[4]).into_owned();
         // println!("eof: {:#?}", eof);
         // let parts: Vec<&str> = string.split(&eof).collect();
         // debug!("parts: {:#?}", parts);
         // let pointJson = parts[0];
-        let point: DsPoint = serde_json::from_str(&string).unwrap();
+        let point: DsPoint<T> = serde_json::from_str(&string).unwrap();
         // debug!("point: {:#?}", point);
         point
     }
@@ -141,3 +188,22 @@ impl DsPoint {
         result
     }
 }
+
+
+// #[derive(Debug, Serialize, Deserialize)]
+// #[serde(tag = "type")]
+// #[serde(rename_all = "lowercase")]
+// enum Item {
+//     bool {
+//         #[serde(default)]
+//         value: i32,
+//     },
+//     int {
+//         #[serde(default)]
+//         value: i32,
+//     },
+//     real {
+//         #[serde(default)]
+//         value: f64,
+//     },
+// }
