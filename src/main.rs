@@ -8,12 +8,14 @@ mod analyze_fft;
 mod ui_app;
 mod interval;
 mod tcp_server;
-// use log::{
+mod ds_point;
+
+use log::{
     // info,
     // trace,
-    // debug,
+    debug,
     // warn,
-// };
+};
 use std::{
     env,
     error::Error, 
@@ -34,11 +36,17 @@ fn main() -> Result<(), Box<dyn Error>> {
     env::set_var("RUST_BACKTRACE", "1");
     env_logger::init();
 
+    debug!("[main] creating TcpServer...");
 
-    let mut tcpSrv = TcpServer::new(
-        "127.0.0.1:5180",
-    );
-    tcpSrv.run();
+    let tcpSrv = Arc::new(Mutex::new(
+        TcpServer::new(
+            "127.0.0.1:5180",
+        )
+    ));
+    debug!("[main] TcpServer created");
+    debug!("[main] starting TcpServer...");
+    TcpServer::run(tcpSrv)?;
+    debug!("[main] TcpServer started");
 
     const N: usize = 32_768;
     const sampleRate: f32 = 2_048.0000;

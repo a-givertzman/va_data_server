@@ -1,12 +1,10 @@
+#![allow(non_snake_case)]
+
 use log::{
     info,
     // trace,
     debug,
     warn,
-};
-use serde::{
-    Serialize,
-    Deserialize,
 };
 use std::{
     net::{
@@ -15,11 +13,17 @@ use std::{
         TcpListener,
     }, 
     io::{
-        BufReader, 
-        BufRead, Read, Write,
+        // BufReader, 
+        // BufRead, 
+        Read, Write,
     }, 
-    error::Error, 
+    sync::{
+        Arc, 
+        Mutex,
+    },     
+    thread,
     time::Duration,
+    error::Error, 
 };
 use std::time::SystemTime;
 use chrono::{
@@ -27,73 +31,98 @@ use chrono::{
     Utc,
     SecondsFormat,
 };
+use crate::{
+    input_signal::PI2,
+    ds_point::DsPoint,
+};
 
-use crate::input_signal::PI2;
 
+const EOF: u8 = 4;
+
+
+///
+/// 
 pub struct TcpServer {
     addr: SocketAddr,
-    stream: Option<TcpStream>,
+    // stream: Option<TcpStream>,
     // listener: Option<TcpListener>,
     reconnectDelay: Duration,
     pub isConnected: bool,
+    // cancel: bool,
 }
 
 impl TcpServer {
     pub fn new(addr: &str) -> Self {
         Self {
             addr: addr.parse().unwrap(),
-            stream: None,
+            // stream: None,
             // listener: None,
             reconnectDelay: Duration::from_secs(3),
             isConnected: false,
+            // cancel: false,
         }
     }
-    pub fn run(&mut self) {
+    pub fn run(this: Arc<Mutex<Self>>) -> Result<(), Box<dyn Error>> {
+        debug!("[TcpServer] trying to open...");
         let mut listener: Option<TcpListener> = None;
         let mut tryAgain = 3;
+        let addr = this.lock().unwrap().addr;
+        let reconnectDelay = this.lock().unwrap().reconnectDelay;
         while tryAgain > 0 {
-            listener = match TcpListener::bind(self.addr) {
+            debug!("[TcpServer] {:?} attempts left", tryAgain);
+            listener = match TcpListener::bind(addr) {
                 Ok(stream) => {
-                    info!("[TcpServer] opened on: {:?}\n", self.addr);
+                    info!("[TcpServer] opened on: {:?}\n", addr);
                     tryAgain = -1;
                     Some(stream)
                 },
                 Err(err) => {
-                    debug!("[TcpServer] binding error on: {:?}\n\tdetailes: {:?}", self.addr, err);
-                    std::thread::sleep(self.reconnectDelay);
+                    debug!("[TcpServer] binding error on: {:?}\n\tdetailes: {:?}", addr, err);
+                    std::thread::sleep(reconnectDelay);
                     None
                 },
             };
             tryAgain -= 1;
-        }
+        };
+        debug!("[TcpServer] listening for incoming clients");
         match listener {
             Some(listener) => {
                 for result in listener.incoming() {
-                    let stream = result.unwrap();
+                    let mut stream = result.unwrap();
+                    let mut streamSend = stream.try_clone().unwrap();
+                    let me = this.clone();
                     info!("[TcpServer] incoming connection: {:?}", stream.peer_addr());
-                    // stream.
-                    self.handleConnection(stream);
+                    Some(
+                        thread::Builder::new().name("TcpServer tread".to_string()).spawn(move || {
+                            debug!("[TcpServer] started in {:?}", thread::current().name().unwrap());
+                            me.lock().unwrap().listenStream(&mut stream);
+
+                        })?
+                    );        
+                    this.lock().unwrap().sendToConnection(&mut streamSend);
+                    // this.lock().unwrap().handleConnection(streamSend)?;
                 }
             },
             None => {
                 warn!("[TcpServer] connection failed");
             },
-        }
+        };
+        Ok(())
     }
     ///
     /// 
-    fn handleConnection(&mut self, mut stream: TcpStream) {
-        self.listenConnection(&mut stream);
-        self.sendToConnection(&mut stream);
-    }
+    // fn handleConnection(&mut self, mut stream: TcpStream) -> Result<(), Box<dyn Error>> {
+    //     // let mut s1 = Arc::new(Mutex::new(stream.try_clone().unwrap()));
+    //     Ok(())
+    // }
     ///
     /// 
-    fn buildPoint(&self, value: f64) -> DsPoint<f64> {
+    fn buildPoint(&self, name: &str, value: f64) -> DsPoint<f64> {
         DsPoint {
             class: String::from("commonCmd"),
             datatype: String::from("real"),
-            name: String::from("/line1/ied12/db902_panel_controls/Platform.SensorMRU"),
-            value: value,
+            name: format!("/line1/ied12/db902_panel_controls/{}", name.to_owned()),
+            value,
             status: 0,
             timestamp: DateTime::<Utc>::from(SystemTime::now()).to_rfc3339_opts(SecondsFormat::Micros, true),
         }
@@ -102,108 +131,90 @@ impl TcpServer {
     /// Sending messages to remote client
     fn sendToConnection(&mut self, stream: &mut TcpStream) {
         debug!("[TcpServer] start to sending messages...");
-        // stream.set_nonblocking(true).expect("set_nonblocking call failed");
-        let delay = 1.0 / 16_384.0;
-        let phi = 0.0;
+        let len = 4096;
+        let delay = 1.0 / (len as f64);
+        let mut i = 0;
+        let mut phi = 0.0;
         println!("sending delay: {:#?}", delay);
         let now: DateTime<Utc> = SystemTime::now().into();
         println!("first: {:?}", now.to_rfc3339_opts(SecondsFormat::Micros, true));
-        let mut point = self.buildPoint(phi);
+        let mut points;
+        let mut errHappen = false;
         loop {
             // println!("buf: {:#?}", buf);
-            point = self.buildPoint(phi);
-            debug!("sending point: {:#?}", point);
-            let jsonString = point.toJson();
-            match jsonString {
-                Ok(value) => {
-                    stream.write(value.as_bytes()).unwrap();
-                },
-                Err(err) => {
-                    warn!("error converting point to json: {:?},\n\tdetales: {:?}", point, err)
-                },
+            points = vec![
+                // self.buildPoint("Platform.i", i as f64),
+                self.buildPoint("Platform.phi", phi),
+                self.buildPoint("Platform.sin", 100.0 * (1.0 * phi).sin()),
+            ];
+            for point in points {
+                // debug!("sending point: {:#?}", point);
+                let jsonString = point.toJson();
+                errHappen = false;
+                match jsonString {
+                    Ok(value) => {
+                        match Self::writeToTcpStream(stream, value.as_bytes()) {
+                            Ok(_) => {},
+                            Err(_) => {
+                                errHappen = true;
+                                break;
+                            },
+                        };
+                        match Self::writeToTcpStream(stream, &[EOF]) {
+                            Ok(_) => {},
+                            Err(_) => {
+                                errHappen = true;
+                                break;
+                            },
+                        };
+                    },
+                    Err(err) => {
+                        warn!("error converting point to json: {:?},\n\tdetales: {:?}", point, err);
+                    },
+                }
+                if errHappen { break };
             }
-            std::thread::sleep(Duration::from_secs_f64(delay));
+            if errHappen { break };
+            i = (i + 1) % len;
+            phi = PI2 * (i as f64) / (len as f64);
+            thread::sleep(Duration::from_secs_f64(delay));
+        }
+        warn!("[TcpServer] sendToConnection exit");
+    }
+    ///
+    /// 
+    fn writeToTcpStream(stream: &mut TcpStream, bytes: &[u8]) -> Result<(), Box<dyn Error>> {
+        match stream.write(bytes) {
+            Ok(_) => Ok(()),
+            Err(err) => {
+                warn!("TcpStream write error, data: {:?},\n\tdetales: {:?}", bytes, err);
+                Err(Box::new(err))
+            },
         }
     }
     ///
     /// Listening incoming messages from remote client
-    fn listenConnection(&mut self, stream: &mut TcpStream) {
+    fn listenStream(&mut self, stream: &mut TcpStream) {
         debug!("[TcpServer] start to reading messages...");
-        // stream.set_nonblocking(true).expect("set_nonblocking call failed");
         loop {
             let mut buf = [0; 256];
-            // let mut string = String::new();
             match stream.read(&mut buf) {
                 Ok(bytesRead) => {
                     debug!("[TcpServer] bytes read: {:#?}", bytesRead);
                 },
                 Err(err) => {
                     warn!("[TcpServer] TcpStream read error: {:#?}", err);
+                    break;
                 },
             };
-            // println!("buf: {:#?}", buf);
+            // debug!("buf: {:#?}", buf);
             let parts = buf.split(|b| {*b == EOF});
             let bytes: Vec<_> = parts.take(1).collect();
             // debug!("bytes: {:#?}", bytes[0]);
             let point = DsPoint::<f64>::fromBytes(bytes[0]);
             debug!("received point: {:#?}", point);
-            std::thread::sleep(self.reconnectDelay);
+            thread::sleep(self.reconnectDelay);
         }
+        warn!("[TcpServer] listenStream exit");
     }
 }
-
-
-const EOF: u8 = 4;
-
-#[derive(Debug, Deserialize, Serialize)]
-struct DsPoint<T> {
-    class: String,
-    #[serde(rename(deserialize = "type", serialize = "type"))]
-    datatype: String,
-    name: String,
-    value: T,
-    status: i64,
-    timestamp: String,
-}
-impl<'a, T> DsPoint<T> 
-where
-    for<'de> T: Deserialize<'de> + 'a,
-    T: Serialize + 'a,
-{
-    pub fn fromBytes(bytes: &[u8]) -> Self {
-        let string = String::from_utf8_lossy(&bytes).into_owned();
-        debug!("string: {:#?}", string);
-        // let eof = String::from_utf8_lossy(&[4]).into_owned();
-        // println!("eof: {:#?}", eof);
-        // let parts: Vec<&str> = string.split(&eof).collect();
-        // debug!("parts: {:#?}", parts);
-        // let pointJson = parts[0];
-        let point: DsPoint<T> = serde_json::from_str(&string).unwrap();
-        // debug!("point: {:#?}", point);
-        point
-    }
-    pub fn toJson(&self) -> Result<String, serde_json::error::Error>{
-        let result = serde_json::to_string(&self);
-        debug!("point: {:#?}", result);
-        result
-    }
-}
-
-
-// #[derive(Debug, Serialize, Deserialize)]
-// #[serde(tag = "type")]
-// #[serde(rename_all = "lowercase")]
-// enum Item {
-//     bool {
-//         #[serde(default)]
-//         value: i32,
-//     },
-//     int {
-//         #[serde(default)]
-//         value: i32,
-//     },
-//     real {
-//         #[serde(default)]
-//         value: f64,
-//     },
-// }
