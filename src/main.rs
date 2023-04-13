@@ -1,114 +1,316 @@
 #![allow(non_snake_case)]
 
 mod circular_queue;
+mod bq;
 
-use log::info;
+use crossbeam_queue::ArrayQueue;
+use log::{
+    info, 
+    debug, 
+    warn
+};
 use std::{
     thread, 
     sync::{Mutex, Arc, mpsc}, 
-    time::Duration, 
+    time::{Duration, Instant}, 
     env
 };
-use circular_queue::CircularQueue;
+// use circular_queue::CircularQueue;
 use ringbuf::HeapRb;
-use heapless::spsc::Queue;
+// use heapless::spsc::{Queue, Producer, Consumer};
+use bq::{BlockingQueue};
+
+const QSIZE: usize = 16_384;
 
 fn main() {
     env::set_var("RUST_LOG", "debug");
     env::set_var("RUST_BACKTRACE", "1");
     env_logger::init();
 
-    // heaplessQueue();
-    heapRb();
+    let length = 16_777_216;
+
+    // heaplessQueue(length);
+    heapRb(length);
+    mpscChannel(length);
+    blockingQueue(length);
 
 }
 
 
 
-fn heaplessQueue() {
-    let cancel = false;
-    // let q1 = Arc::new(Mutex::new(queue));
-    // let q2 = q1.clone();
-    // let r1 = &mut queue;
-    // let refQueue = ;
+// fn heaplessQueue<'a>(length: i32) where 'a: 'static{
+//     info!("heapless Queue");
+//     let cancel = Arc::new(Mutex::new(false));
+//     let mut rec = vec![];
+
+//     let queue = heapless::spsc::Queue::<i32, QSIZE>::new();
+//     let arc = Arc::<Queue<i32, QSIZE>>::new(queue.clone());
+//     // let queue = Arc::new(Mutex::new(heapless::spsc::Queue::<i32, QSIZE>::new()));
+//     // let queueTx = Arc::clone(&queue);
+//     // let queueRx = Arc::clone(&queue);
+//     let r = arc.clone();
+//     let arcRefTx: &'a Arc<Queue<i32, QSIZE>> = &r;
+//     let arcRefRx = &arc;
+
+//     let mut tx = Producer::<'static, i32, QSIZE> {rb: arcRefTx};
+//     let mut rx = Consumer {rb: &queue};
+//     // let (mut tx, mut rx) = queue.split();
+
+//     let start = Instant::now();
+    
+//     let cancelTx = Arc::clone(&cancel);
+//     let handle = thread::Builder::new().name("tread tx".to_string()).spawn(move || {
+//         info!("tread tx is started");
+//         // let mut tx = *queueTx.lock().unwrap();
+//         info!("queue.lock() done");
+//         // loop {            
+//             for x in 0..length {
+//                 let mut sent = false;
+//                 while !sent {
+//                     match tx.enqueue(x) {
+//                         Ok(_) => {
+//                             sent = true;
+//                             // debug!("[tread tx] sent: {:?}", x);
+//                         },
+//                         Err(_) => {
+//                             thread::sleep(Duration::from_micros(100));
+//                             // warn!("[tread tx] sending: {:?} error", err);
+//                         },
+//                     };
+//                     // thread::sleep(Duration::from_millis(10));
+//                 }
+//             }
+//             let mut c = cancelTx.lock().unwrap();
+//             *c = true;
+//             thread::sleep(Duration::from_millis(300));
+//         // }
+//     }).unwrap();
+
+//     // info!("main loop starting...");
+//     // let mut rx = queueRx.lock().unwrap();
+//     while !(*cancel.lock().unwrap() && rx.len() == 0) {
+//         if !(rx.len() == 0) {
+//             // rec.clear();
+//             for _ in 0..rx.len() {
+//                 match rx.dequeue() {
+//                     Some(item) => {
+//                         rec.push(item);
+//                     },
+//                     None => {},
+//                 }
+//                 // thread::sleep(Duration::from_secs_f64(0.001));
+//             }
+//         // } else {
+//             // thread::sleep(Duration::from_millis(50));
+//         }
+//     }
+//     info!("elapsed: {:?}", start.elapsed());
+//     // info!("received rec: {:?}", rec);
+//     for x in 0..length {
+//         if !rec.contains(&x) {
+//             info!("missing value: {:?}", x);
+//         }
+//     }
+
+//     handle.join().unwrap();    
+// }
+
+
+///
+/// 
+fn heapRb(length: i32) {
+    info!("ringbuf::HeapRb");
+    let cancel = Arc::new(Mutex::new(false));
     let mut rec = vec![];
+    let queue: HeapRb<i32> = HeapRb::<i32>::new(QSIZE);
 
-    let (tx, rx) = mpsc::channel::<i32>();
+    let (mut tx, mut rx) = queue.split();
 
+    let start = Instant::now();
+    
+    let cancelTxArc = Arc::clone(&cancel);
     let handle = thread::Builder::new().name("tread tx".to_string()).spawn(move || {
-        // let mut q = q2.lock().unwrap();
-        loop {            
-            for x in 0..10 {
-                match tx.send(x) {
-                    Ok(_) => {},
-                    Err(err) => {
-                        info!("[tread tx] send error: {:?}", err);
-                    },
-                };
-                info!("[tread tx] pushed: {:?}", x);
-                thread::sleep(Duration::from_millis(50));
+        info!("tread tx is started");
+        // loop {            
+            for x in 0..length {
+                let mut sent = false;
+                while !sent {
+                    match tx.push(x) {
+                        Ok(_) => {
+                            sent = true;
+                            // debug!("[tread tx] sent: {:?}", x);
+                        },
+                        Err(err) => {
+                            thread::sleep(Duration::from_micros(100));
+                            warn!("[tread tx] sending: {:?} error", err);
+                        },
+                    };
+                    // thread::sleep(Duration::from_millis(10));
+                }
             }
-            thread::sleep(Duration::from_millis(3000));
-        }
+            let mut cancelTx = cancelTxArc.lock().unwrap();
+            *cancelTx = true;
+            thread::sleep(Duration::from_millis(300));
+        // }
     }).unwrap();
 
-    info!("tread tx is started");
-    // thread::sleep(Duration::from_secs_f64(1.0));
-    info!("main loop starting...");
-    // let q = q1.lock().unwrap();
-    while !cancel {        
-        // info!("queue len: {:?}", q1.lock().unwrap().len());
-        // let q = q1.lock().unwrap();
-        rec.clear();
-        for item in rx.iter() {
-            rec.push(item);
-            // thread::sleep(Duration::from_secs_f64(0.001));
+    // info!("main loop starting...");
+    while !(*cancel.lock().unwrap() && rx.is_empty()) {
+        if !rx.is_empty() {
+            // rec.clear();
+            for item in rx.pop_iter() {
+                rec.push(item);
+                // thread::sleep(Duration::from_secs_f64(0.001));
+            }
+        // } else {
+            // thread::sleep(Duration::from_millis(50));
         }
-        info!("received rec: {:?}", rec);
-        thread::sleep(Duration::from_millis(500));
     }
+    info!("elapsed: {:?}", start.elapsed());
+    // info!("received rec: {:?}", rec);
+    info!("verifing transmitted data...");
+    for x in 0..length {
+        if rec[x as usize] != x {
+            info!("missing value: {:?}", x);
+        }
+        // if !rec.contains(&x) {
+        //     info!("missing value: {:?}", x);
+        // }
+    }
+    info!("verification done");
+
     handle.join().unwrap();    
 }
 
 
-fn heapRb() {
-    let cancel = false;
+///
+/// 
+fn mpscChannel(length: i32) {
+    info!("mpscChannel");
+    let cancel = Arc::new(Mutex::new(false));
     let mut rec = vec![];
-    let queue: HeapRb<i32> = HeapRb::<i32>::new(16);
+    let (tx, rx) = mpsc::sync_channel(QSIZE);//  ::channel::<i32>();
 
-    let (mut tx, rx) = queue.split();
-
+    let start = Instant::now();
+    
+    let cancelTxArc = Arc::clone(&cancel);
     let handle = thread::Builder::new().name("tread tx".to_string()).spawn(move || {
-        // let mut q = q2.lock().unwrap();
-        loop {            
-            for x in 0..10 {
-                match tx.push(x) {
-                    Ok(_) => {},
-                    Err(err) => {
-                        info!("[tread tx] send error: {:?}", err);
-                    },
-                };
-                info!("[tread tx] pushed: {:?}", x);
-                thread::sleep(Duration::from_millis(50));
+        info!("tread tx is started");
+        // loop {            
+            for x in 0..length {
+                let mut sent = false;
+                while !sent {
+                    match tx.send(x) {
+                        Ok(_) => {
+                            sent = true;
+                            // debug!("[tread tx] sent: {:?}", x);
+                        },
+                        Err(err) => {
+                            thread::sleep(Duration::from_micros(100));
+                            warn!("[tread tx] sending: {:?} error", err);
+                        },
+                    };
+                    // thread::sleep(Duration::from_millis(10));
+                }
             }
-            thread::sleep(Duration::from_millis(3000));
-        }
+            let mut cancelTx = cancelTxArc.lock().unwrap();
+            *cancelTx = true;
+            thread::sleep(Duration::from_millis(300));
+        // }
     }).unwrap();
 
-    info!("tread tx is started");
-    // thread::sleep(Duration::from_secs_f64(1.0));
-    info!("main loop starting...");
-    // let q = q1.lock().unwrap();
-    while !cancel {        
-        // info!("queue len: {:?}", q1.lock().unwrap().len());
-        // let q = q1.lock().unwrap();
-        rec.clear();
-        for item in rx.iter() {
-            rec.push(item);
-            // thread::sleep(Duration::from_secs_f64(0.001));
-        }
-        info!("received rec: {:?}", rec);
-        thread::sleep(Duration::from_millis(500));
+    // info!("main loop starting...");
+    while !(*cancel.lock().unwrap()) {
+        // if !rx.is_empty() {
+            // rec.clear();
+            for item in rx.iter() {
+                rec.push(item);
+                // thread::sleep(Duration::from_secs_f64(0.001));
+            }
+        // } else {
+            // thread::sleep(Duration::from_millis(50));
+        // }
     }
+    info!("elapsed: {:?}", start.elapsed());
+    // info!("received rec: {:?}", rec);
+    info!("verifing transmitted data...");
+    for x in 0..length {
+        if rec[x as usize] != x {
+            info!("missing value: {:?}", x);
+        }
+        // if !rec.contains(&x) {
+        //     info!("missing value: {:?}", x);
+        // }
+    }
+    info!("verification done");
+
+    handle.join().unwrap();    
+}
+
+
+///
+/// 
+fn blockingQueue(length: i32) {
+    info!("BlockingQueue");
+    let cancel = Arc::new(Mutex::new(false));
+    let mut rec = vec![];
+
+    let share = Arc::new(BlockingQueue::<i32>::new());
+    let tx = Arc::clone(&share);
+    let rx = Arc::clone(&share);
+    let start = Instant::now();
+    
+    let cancelTxArc = Arc::clone(&cancel);
+    let handle = thread::Builder::new().name("tread tx".to_string()).spawn(move || {
+        info!("tread tx is started");
+        // loop {            
+            for x in 0..length {
+                let mut sent = false;
+                while !sent {
+                    tx.en_q(x)
+                    // {
+                    //     Ok(_) => {
+                    //         sent = true;
+                    //         // debug!("[tread tx] sent: {:?}", x);
+                    //     },
+                    //     Err(err) => {
+                    //         thread::sleep(Duration::from_micros(100));
+                    //         warn!("[tread tx] sending: {:?} error", err);
+                    //     },
+                    // };
+                    // thread::sleep(Duration::from_millis(10));
+                }
+            }
+            let mut cancelTx = cancelTxArc.lock().unwrap();
+            *cancelTx = true;
+            thread::sleep(Duration::from_millis(300));
+        // }
+    }).unwrap();
+
+    // info!("main loop starting...");
+    while !(*cancel.lock().unwrap()) {
+        // if !rx.is_empty() {
+            // rec.clear();
+            for _ in 0..rx.len() {
+                rec.push(rx.de_q());
+                // thread::sleep(Duration::from_secs_f64(0.001));
+            }
+        // } else {
+            // thread::sleep(Duration::from_millis(50));
+        // }
+    }
+    info!("elapsed: {:?}", start.elapsed());
+    // info!("received rec: {:?}", rec);
+    info!("verifing transmitted data...");
+    for x in 0..length {
+        if rec[x as usize] != x {
+            info!("missing value: {:?}", x);
+        }
+        // if !rec.contains(&x) {
+        //     info!("missing value: {:?}", x);
+        // }
+    }
+    info!("verification done");
+
     handle.join().unwrap();    
 }
