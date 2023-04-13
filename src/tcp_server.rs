@@ -33,7 +33,10 @@ use chrono::{
     SecondsFormat,
 };
 use crate::{
-    input_signal::PI2,
+    input_signal::{
+        PI2, 
+        InputSignal,
+    },
     ds_point::DsPoint,
 };
 
@@ -50,10 +53,11 @@ pub struct TcpServer {
     reconnectDelay: Duration,
     pub isConnected: bool,
     // cancel: bool,
+    pub inputSignal: Arc<Mutex<InputSignal>>,
 }
 
 impl TcpServer {
-    pub fn new(addr: &str) -> Self {
+    pub fn new(addr: &str, inputSignal: Arc<Mutex<InputSignal>>) -> Self {
         Self {
             addr: addr.parse().unwrap(),
             // stream: None,
@@ -61,6 +65,7 @@ impl TcpServer {
             reconnectDelay: Duration::from_secs(3),
             isConnected: false,
             // cancel: false,
+            inputSignal,
         }
     }
     pub fn run(this: Arc<Mutex<Self>>) -> Result<(), Box<dyn Error>> {
@@ -143,13 +148,15 @@ impl TcpServer {
         let mut errHappen = false;
         loop {
             // println!("buf: {:#?}", buf);
+            self.inputSignal.lock().unwrap().xyPoints.
             points = vec![
                 // self.buildPoint("Platform.i", i as f64),
                 self.buildPoint("Platform.phi", phi),
                 self.buildPoint(
                     "Platform.sin", 
                     100.0 * (1.0 * phi).sin()
-                    + 100.0 * (2.0 * phi).sin()
+                    + 50.0 * (2.0 * phi).sin()
+                    + 10.0 * (3.0 * phi).sin()
                 ),
             ];
             for point in points {
