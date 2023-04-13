@@ -123,14 +123,14 @@ impl TcpServer {
     // }
     ///
     /// 
-    fn buildPoint(&self, name: &str, value: f64) -> DsPoint<f64> {
+    fn buildPoint(&self, name: &str, value: f64, timestamp: SystemTime) -> DsPoint<f64> {
         DsPoint {
             class: String::from("commonCmd"),
             datatype: String::from("real"),
             name: format!("/line1/ied12/db902_panel_controls/{}", name.to_owned()),
             value,
             status: 0,
-            timestamp: DateTime::<Utc>::from(SystemTime::now()).to_rfc3339_opts(SecondsFormat::Micros, true),
+            timestamp: DateTime::<Utc>::from(timestamp).to_rfc3339_opts(SecondsFormat::Micros, true),
         }
     }
     ///
@@ -148,8 +148,22 @@ impl TcpServer {
         let mut errHappen = false;
         loop {
             // println!("buf: {:#?}", buf);
-            self.inputSignal.lock().unwrap().xyPoints.
-            points = vec![
+            let is = self.inputSignal.lock().unwrap();
+            let mut queue = is.queueRx.lock().unwrap();
+            let length = queue.len();
+            let mut items = Vec::with_capacity(length);
+            for _ in 0..length {
+                match queue.dequeue() {
+                    Some(item) => {
+                        items.push(item);
+                    },
+                    None => {},
+                }
+            }
+            points = items.iter().map(|item| {
+                self.buildPoint("Platform.sin", value, timestamp)
+            });
+            vec![
                 // self.buildPoint("Platform.i", i as f64),
                 self.buildPoint("Platform.phi", phi),
                 self.buildPoint(

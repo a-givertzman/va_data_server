@@ -1,5 +1,6 @@
 #![allow(non_snake_case)]
 
+use heapless::spsc::{Producer, Consumer};
 use log::{
     // info,
     // trace,
@@ -12,14 +13,14 @@ use std::{
         Mutex
     }, 
     thread,
-    error::Error, 
+    error::Error, time::{Instant, UNIX_EPOCH}, 
 };
 use rustfft::num_complex::Complex;
 use crate::{
     interval::Interval, 
     circular_queue::CircularQueue,
     dsp_filters::{
-        average_filter::AverageFilter,
+        // average_filter::AverageFilter,
         slp_filter::SlpFilter,
     }
 };
@@ -27,6 +28,7 @@ use crate::{
 pub const PI: f64 = std::f64::consts::PI;
 pub const PI2: f64 = PI * 2.0;
 
+const QSIZE: usize = 16_384;
 // type BuilderCallback = fn(t: f32, f: f32) -> f32;
 
 ///
@@ -49,11 +51,17 @@ pub struct InputSignal {
     pub xyPoints: CircularQueue<[f64; 2]>,
     // pub test: CircularQueue<[f64; 16_384]>,
     inputFilter: SlpFilter<f64>,
+    pub queueTx: Arc<Mutex<Producer<'static, [f64; 2], QSIZE>>>,
+    pub queueRx: Arc<Mutex<Consumer<'static, [f64; 2], QSIZE>>>,
 }
 impl InputSignal {
     ///
     /// Creates new instance
     pub fn new(f: f32, builder: fn(f64) -> f64, len: usize, step: Option<f64>) -> Self {
+        static mut RB: heapless::spsc::Queue<[f64; 2], QSIZE> = heapless::spsc::Queue::<[f64; 2], QSIZE>::new();
+        let queue = unsafe { &mut RB };
+        let (tx, rx) = queue.split();
+    
         let period = 1.0 / (f as f64);
         let delta = period / (len as f64);
         let iToNList: Vec<f64> = (0..len).into_iter().map(|i| {(i as f64) / (len as f64)}).collect();
@@ -89,6 +97,8 @@ impl InputSignal {
             // test: CircularQueue::with_capacity(16_384),
             xyPoints: CircularQueue::with_capacity_fill(len, &mut vec![[0.0, 0.0]; len]),
             inputFilter: SlpFilter::new(4),
+            queueTx: Arc::new(Mutex::new(tx)),
+            queueRx: Arc::new(Mutex::new(rx)),
         }
     }
     ///
@@ -137,6 +147,8 @@ impl InputSignal {
             },
         );
         self.xyPoints.push([self.t as f64, self.amplitude as f64]);
+        let t = Instant::now().duration_since(UNIX_EPOCH).as_secs_f64();
+        self.queueTx.lock().unwrap().enqueue([self.amplitude as f64, t]);
         self.increment();
     }
     ///
