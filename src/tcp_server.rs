@@ -123,14 +123,14 @@ impl TcpServer {
     // }
     ///
     /// 
-    fn buildPoint(&self, name: &str, value: f64, timestamp: SystemTime) -> DsPoint<f64> {
+    fn buildPoint(&self, name: &str, value: &f64, timestamp: &SystemTime) -> DsPoint<f64> {
         DsPoint {
             class: String::from("commonCmd"),
             datatype: String::from("real"),
             name: format!("/line1/ied12/db902_panel_controls/{}", name.to_owned()),
-            value,
+            value: *value,
             status: 0,
-            timestamp: DateTime::<Utc>::from(timestamp).to_rfc3339_opts(SecondsFormat::Micros, true),
+            timestamp: DateTime::<Utc>::from(*timestamp).to_rfc3339_opts(SecondsFormat::Micros, true),
         }
     }
     ///
@@ -161,18 +161,19 @@ impl TcpServer {
                 }
             }
             points = items.iter().map(|item| {
+                let (value, timestamp) = item;
                 self.buildPoint("Platform.sin", value, timestamp)
             });
-            vec![
-                // self.buildPoint("Platform.i", i as f64),
-                self.buildPoint("Platform.phi", phi),
-                self.buildPoint(
-                    "Platform.sin", 
-                    100.0 * (1.0 * phi).sin()
-                    + 50.0 * (2.0 * phi).sin()
-                    + 10.0 * (3.0 * phi).sin()
-                ),
-            ];
+            // vec![
+            //     // self.buildPoint("Platform.i", i as f64),
+            //     self.buildPoint("Platform.phi", phi),
+            //     self.buildPoint(
+            //         "Platform.sin", 
+            //         100.0 * (1.0 * phi).sin()
+            //         + 50.0 * (2.0 * phi).sin()
+            //         + 10.0 * (3.0 * phi).sin()
+            //     ),
+            // ];
             for point in points {
                 // debug!("sending point: {:#?}", point);
                 let jsonString = point.toJson();
