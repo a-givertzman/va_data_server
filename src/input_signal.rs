@@ -13,7 +13,10 @@ use std::{
         Mutex
     }, 
     thread,
-    error::Error, time::{Instant, UNIX_EPOCH, SystemTime}, 
+    error::Error, time::{
+        // Instant, UNIX_EPOCH, 
+        SystemTime,
+    }, 
 };
 use rustfft::num_complex::Complex;
 use crate::{
@@ -147,7 +150,12 @@ impl InputSignal {
             },
         );
         self.xyPoints.push([self.t as f64, self.amplitude as f64]);
-        self.queueTx.lock().unwrap().enqueue((self.amplitude as f64, SystemTime::now()));
+        match self.queueTx.lock().unwrap().enqueue((self.amplitude as f64, SystemTime::now())) {
+            Ok(_) => {},
+            Err(err) => {
+                debug!("[InputSignal.next] queueTx.enqueue error: {:?}", err);
+            },
+        };
         self.increment();
     }
     ///
@@ -155,9 +163,9 @@ impl InputSignal {
     fn increment(&mut self) {
         self.i = (self.i + 1) % self.len;
     }
-    ///
-    /// current value [time, amplitude]
-    pub fn read(&self) -> [f64; 3] {
-        [self.phi, self.t, self.amplitude]
-    }  
+    //
+    // current value [time, amplitude]
+    // pub fn read(&self) -> [f64; 3] {
+    //     [self.phi, self.t, self.amplitude]
+    // }  
 }

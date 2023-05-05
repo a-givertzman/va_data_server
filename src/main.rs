@@ -78,26 +78,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             None, // Some(0.0001),
             )
     ));
-    InputSignal::run(inputSignal.clone())?;
-
-
-    let reconnectDelay = Duration::from_secs(3);
-    let localAddr = "192.168.120.172:5180";
-    let remoteAddr = "192.168.120.173:5180";
-    debug!("[main] creating UdpServer...");
-    let tcpSrv = Arc::new(Mutex::new(
-        UdpServer::new(
-            localAddr,
-            remoteAddr,
-            // "127.0.0.1:5180",
-            Some(reconnectDelay),
-        )
-    ));
-    debug!("[main] UdpServer created");
-    debug!("[main] starting UdpServer...");
-    UdpServer::run(tcpSrv);
-    debug!("[main] UdpServer started");
-
+    // InputSignal::run(inputSignal.clone())?;
+    debug!("[main] InputSignal ready\n");
 
 
     debug!("[main] creating TcpServer...");
@@ -108,9 +90,23 @@ fn main() -> Result<(), Box<dyn Error>> {
         )
     ));
     debug!("[main] TcpServer created");
-    debug!("[main] starting TcpServer...");
     TcpServer::run(tcpSrv)?;
-    debug!("[main] TcpServer started");
+
+
+    let reconnectDelay = Duration::from_secs(3);
+    let localAddr = "192.168.120.172:15180";
+    let remoteAddr = "192.168.120.173:15180";
+    debug!("[main] creating UdpServer...");
+    let tcpSrv = Arc::new(Mutex::new(
+        UdpServer::new(
+            localAddr,
+            remoteAddr,
+            // "127.0.0.1:5180",
+            Some(reconnectDelay),
+        )
+    ));
+    debug!("[main] UdpServer created");
+    UdpServer::run(tcpSrv);
 
 
     let analyzeFft = Arc::new(Mutex::new(

@@ -9,7 +9,7 @@ use log::{
 use std::{
     net::UdpSocket, 
     time::Duration, 
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex}, thread,
 };
 pub struct UdpServer {
     localAddr: String, //SocketAddr,
@@ -54,59 +54,68 @@ impl UdpServer {
     }
     ///
     pub fn run(this: Arc<Mutex<Self>>) -> () {
+        const logLoc: &str = "[UdpServer.run]";
     // pub fn run(this: Arc<Mutex<Self>>) -> Result<(), Box<dyn Error>> {
-        info!("[UdpServer.run] enter");
-        let mut thisMutax = this.lock().unwrap();
-        let cancel = thisMutax.cancel;
-        let localAddr = &thisMutax.localAddr.clone();
-        let remoteAddr = &thisMutax.remoteAddr.clone();
-        let reconnectDelay = thisMutax.reconnectDelay;
-        info!("[UdpServer.run] started");
-        while !cancel {
-            info!("[UdpServer.run] try to bind on: {:?}", localAddr);
-            match UdpSocket::bind(localAddr) {
-                Ok(socket) => {
-                    info!("[UdpServer.run] ready on: {:?}\n", localAddr);
-                    thisMutax.isConnected = true;
-                    info!("[UdpServer.run] isConnected: {:?}\n", thisMutax.isConnected);
-                    let mut bufDouble = [0; QSIZE_DOUBLE];
-                    let mut buf = [0; QSIZE];
-                    info!("[UdpServer.run] sending handshake({}): {:?}\n", bufDouble.len(), bufDouble);
-                    match socket.send_to(&Self::handshake(), remoteAddr) {
-                        Ok(_) => {},
-                        Err(err) => {
-                            warn!("[UdpServer.run] send error: {:#?}", err);
-                        },
-                    };
-                    loop {
-                        match socket.recv_from(&mut bufDouble) {
-                            Ok((amt, src)) => {
-                                // debug!("[UdpServer.run] receaved bytes({}) from{:?}: {:?}",amt, src, buf);
-                                let mut bytes = [0_u8; 2];
-                                for i in 0..QSIZE {
-                                    bytes[0] = bufDouble[i * 2];
-                                    bytes[1] = bufDouble[i * 2 + 1];
-                                    buf[i] = u16::from_be_bytes(bytes);
-                                }
-                                debug!("[UdpServer.run] receaved bytes({}) from{:?}: {:?}",amt, src, buf);
-                                buf.fill(0);
-                                bufDouble.fill(0)
-                            },
+        debug!("{} starting...", logLoc);
+        info!("{} enter", logLoc);
+        thread::Builder::new().name("UdpServer tread".to_string()).spawn(move || {
+            debug!("{} started in {:?}", logLoc, thread::current().name().unwrap());
+            // me.lock().unwrap().listenStream(&mut stream);
+            
+            let mut thisMutax = this.lock().unwrap();
+            let cancel = thisMutax.cancel;
+            let localAddr = &thisMutax.localAddr.clone();
+            let remoteAddr = &thisMutax.remoteAddr.clone();
+            let reconnectDelay = thisMutax.reconnectDelay;
+            
+            info!("{} started", logLoc);
+            while !cancel {
+                info!("{} try to bind on: {:?}", logLoc, localAddr);
+                match UdpSocket::bind(localAddr) {
+                    Ok(socket) => {
+                        info!("{} ready on: {:?}\n", logLoc, localAddr);
+                        thisMutax.isConnected = true;
+                        info!("{} isConnected: {:?}\n", logLoc, thisMutax.isConnected);
+                        let mut bufDouble = [0; QSIZE_DOUBLE];
+                        let mut buf = [0; QSIZE];
+                        info!("{} sending handshake({}): {:?}\n", logLoc, bufDouble.len(), bufDouble);
+                        match socket.send_to(&Self::handshake(), remoteAddr) {
+                            Ok(_) => {},
                             Err(err) => {
-                                warn!("[UdpServer.run] read error: {:#?}", err);
+                                warn!("{} send error: {:#?}", logLoc, err);
                             },
                         };
+                        loop {
+                            match socket.recv_from(&mut bufDouble) {
+                                Ok((amt, src)) => {
+                                    // debug!("{} receaved bytes({}) from{:?}: {:?}", logLoc, amt, src, buf);
+                                    let mut bytes = [0_u8; 2];
+                                    for i in 0..QSIZE {
+                                        bytes[0] = bufDouble[i * 2];
+                                        bytes[1] = bufDouble[i * 2 + 1];
+                                        buf[i] = u16::from_be_bytes(bytes);
+                                    }
+                                    debug!("{} receaved bytes({}) from{:?}: {:?}", logLoc, amt, src, buf);
+                                    buf.fill(0);
+                                    bufDouble.fill(0)
+                                },
+                                Err(err) => {
+                                    warn!("{} read error: {:#?}", logLoc, err);
+                                },
+                            };
+                        }
+                    }
+                    Err(err) => {
+                        thisMutax.isConnected = false;
+                        debug!("{} binding error on: {:?}\n\tdetailes: {:?}", logLoc, localAddr, err);
+                        std::thread::sleep(reconnectDelay);
                     }
                 }
-                Err(err) => {
-                    thisMutax.isConnected = false;
-                    debug!("[UdpServer.run] binding error on: {:?}\n\tdetailes: {:?}", localAddr, err);
-                    std::thread::sleep(reconnectDelay);
-                }
+                std::thread::sleep(reconnectDelay);
             }
-            std::thread::sleep(reconnectDelay);
-        }
-        info!("[UdpServer.run] exit");
+            info!("{} exit", logLoc);
+        }).unwrap();
+        debug!("{} started\n", logLoc);
     }
     ///
     fn handshake() -> [u8; 2] {
