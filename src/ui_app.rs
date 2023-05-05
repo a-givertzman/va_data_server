@@ -156,25 +156,31 @@ impl eframe::App for UiApp {
 
         egui::Window::new("real input").show(ctx, |ui| {
             debug!("[UiApp.update] self.udpSrv.lock...");
-            let inputSignal = self.udpSrv.lock().unwrap();
-            debug!("[UiApp.update] self.udpSrv.lock ready");
-            // ui.label(format!(" i: {:?}", inputSignal.i));
-            // ui.label(format!(" t: {:?}", inputSignal.t));
-            // ui.label(format!(" phi: {:?}", inputSignal.phi));
-            // ui.label(format!(" t: {:?}", inputSignal.t));
-            ui.label(format!("length: {}", inputSignal.xy.len()));
-            // ui.label(format!("xyPoints length: {}", inputSig.xyPoints.len()));
-            // ui.end_row();
-            if ui.button("Stop").clicked() {
-                // inputSignal.cancel();
-            }
-            Plot::new("real input").show(ui, |plotUi| {
-                plotUi.points(
-                    Points::new(
-                        inputSignal.xy.buffer().clone()
-                    ),
-                )
-            });
+            match self.udpSrv.try_lock() {
+                Ok(inputSignal) => {
+                    debug!("[UiApp.update] self.udpSrv.lock ready");
+                    // ui.label(format!(" i: {:?}", inputSignal.i));
+                    // ui.label(format!(" t: {:?}", inputSignal.t));
+                    // ui.label(format!(" phi: {:?}", inputSignal.phi));
+                    // ui.label(format!(" t: {:?}", inputSignal.t));
+                    ui.label(format!("length: {}", inputSignal.xy.len()));
+                    // ui.label(format!("xyPoints length: {}", inputSig.xyPoints.len()));
+                    // ui.end_row();
+                    if ui.button("Stop").clicked() {
+                        // inputSignal.cancel();
+                    }
+                    Plot::new("real input").show(ui, |plotUi| {
+                        plotUi.points(
+                            Points::new(
+                                inputSignal.xy.buffer().clone()
+                            ),
+                        )
+                    });
+                },
+                Err(err) => {
+                    debug!("[UiApp.update] self.udpSrv.lock error: {:?}", err);
+                },
+            };
         });
 
         // egui::Window::new("AnalyzeFft input").show(ctx, |ui| {
