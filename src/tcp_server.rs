@@ -123,14 +123,14 @@ impl TcpServer {
     // }
     ///
     /// 
-    fn buildPoint(&self, name: &str, value: f64, timestamp: f64) -> DsPoint<f64> {
+    fn buildPoint(&self, name: &str, value: &f64, timestamp: &SystemTime) -> DsPoint<f64> {
         DsPoint {
             class: String::from("commonCmd"),
             datatype: String::from("real"),
             name: format!("/line1/ied12/db902_panel_controls/{}", name.to_owned()),
-            value,
+            value: *value,
             status: 0,
-            timestamp: DateTime::<Utc>::from(timestamp).to_rfc3339_opts(SecondsFormat::Micros, true),
+            timestamp: DateTime::<Utc>::from(*timestamp).to_rfc3339_opts(SecondsFormat::Micros, true),
         }
     }
     ///
@@ -160,11 +160,8 @@ impl TcpServer {
                     None => {},
                 }
             }
-            let value = 0.0;
-            let timestamp = 0.0;
             points = items.iter().map(|item| {
-                value = item[0];
-                timestamp = item[1];
+                let (value, timestamp) = item;
                 self.buildPoint("Platform.sin", value, timestamp)
             });
             // vec![

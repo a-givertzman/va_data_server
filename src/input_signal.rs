@@ -13,7 +13,7 @@ use std::{
         Mutex
     }, 
     thread,
-    error::Error, time::{Instant, UNIX_EPOCH}, 
+    error::Error, time::{Instant, UNIX_EPOCH, SystemTime}, 
 };
 use rustfft::num_complex::Complex;
 use crate::{
@@ -51,14 +51,14 @@ pub struct InputSignal {
     pub xyPoints: CircularQueue<[f64; 2]>,
     // pub test: CircularQueue<[f64; 16_384]>,
     inputFilter: SlpFilter<f64>,
-    pub queueTx: Arc<Mutex<Producer<'static, [f64; 2], QSIZE>>>,
-    pub queueRx: Arc<Mutex<Consumer<'static, [f64; 2], QSIZE>>>,
+    pub queueTx: Arc<Mutex<Producer<'static, (f64, SystemTime), QSIZE>>>,
+    pub queueRx: Arc<Mutex<Consumer<'static, (f64, SystemTime), QSIZE>>>,
 }
 impl InputSignal {
     ///
     /// Creates new instance
     pub fn new(f: f32, builder: fn(f64) -> f64, len: usize, step: Option<f64>) -> Self {
-        static mut RB: heapless::spsc::Queue<[f64; 2], QSIZE> = heapless::spsc::Queue::<[f64; 2], QSIZE>::new();
+        static mut RB: heapless::spsc::Queue<(f64, SystemTime), QSIZE> = heapless::spsc::Queue::<(f64, SystemTime), QSIZE>::new();
         let queue = unsafe { &mut RB };
         let (tx, rx) = queue.split();
     
@@ -147,8 +147,7 @@ impl InputSignal {
             },
         );
         self.xyPoints.push([self.t as f64, self.amplitude as f64]);
-        let t = Instant::now().duration_since(UNIX_EPOCH).as_secs_f64();
-        self.queueTx.lock().unwrap().enqueue([self.amplitude as f64, t]);
+        self.queueTx.lock().unwrap().enqueue((self.amplitude as f64, SystemTime::now()));
         self.increment();
     }
     ///
