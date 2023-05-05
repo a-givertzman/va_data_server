@@ -8,6 +8,7 @@ mod analyze_fft;
 mod ui_app;
 mod interval;
 mod tcp_server;
+mod udp_server;
 mod ds_point;
 
 use log::{
@@ -22,12 +23,16 @@ use std::{
     sync::{
         Arc,
         Mutex,
-    }, time::Duration, 
+    }, 
+    time::Duration, 
 };
 use analyze_fft::AnalizeFft;
 use input_signal::InputSignal;
 use ui_app::UiApp;
-use crate::tcp_server::TcpServer;
+use crate::{
+    udp_server::UdpServer,
+    tcp_server::TcpServer,
+};
 
 ///
 /// 
@@ -74,6 +79,25 @@ fn main() -> Result<(), Box<dyn Error>> {
             )
     ));
     InputSignal::run(inputSignal.clone())?;
+
+
+    let reconnectDelay = Duration::from_secs(3);
+    let localAddr = "192.168.120.172:5180";
+    let remoteAddr = "192.168.120.173:5180";
+    debug!("[main] creating UdpServer...");
+    let tcpSrv = Arc::new(Mutex::new(
+        UdpServer::new(
+            localAddr,
+            remoteAddr,
+            // "127.0.0.1:5180",
+            Some(reconnectDelay),
+        )
+    ));
+    debug!("[main] UdpServer created");
+    debug!("[main] starting UdpServer...");
+    UdpServer::run(tcpSrv);
+    debug!("[main] UdpServer started");
+
 
 
     debug!("[main] creating TcpServer...");
