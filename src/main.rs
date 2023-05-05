@@ -97,16 +97,16 @@ fn main() -> Result<(), Box<dyn Error>> {
     let localAddr = "192.168.120.172:15180";
     let remoteAddr = "192.168.120.173:15180";
     debug!("[main] creating UdpServer...");
-    let tcpSrv = Arc::new(Mutex::new(
+    let udpSrv = Arc::new(Mutex::new(
         UdpServer::new(
             localAddr,
             remoteAddr,
-            // "127.0.0.1:5180",
+            16384.0,
             Some(reconnectDelay),
         )
     ));
     debug!("[main] UdpServer created");
-    UdpServer::run(tcpSrv);
+    UdpServer::run(udpSrv.clone());
 
 
     let analyzeFft = Arc::new(Mutex::new(
@@ -116,11 +116,12 @@ fn main() -> Result<(), Box<dyn Error>> {
             N,
         )
     ));
-    AnalizeFft::run(analyzeFft.clone())?;
+    // AnalizeFft::run(analyzeFft.clone())?;
 
     let uiApp = UiApp::new(
         inputSignal,
         analyzeFft,
+        udpSrv,
         Duration::from_secs_f64(1.0/60.0),
     );
     env::set_var("RUST_BACKTRACE", "full");
