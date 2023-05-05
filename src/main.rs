@@ -122,7 +122,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         inputSignal,
         analyzeFft,
         udpSrv,
-        Duration::from_secs_f64(1.0/60.0),
+        Duration::from_secs_f64(10.0/60.0),
     );
     env::set_var("RUST_BACKTRACE", "full");
     let native_options = eframe::NativeOptions {

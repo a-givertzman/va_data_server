@@ -156,13 +156,12 @@ impl eframe::App for UiApp {
 
         egui::Window::new("real input").show(ctx, |ui| {
             debug!("[UiApp.update] self.udpSrv.lock...");
-            match self.udpSrv.try_lock() {
+            match self.udpSrv.lock() {
                 Ok(inputSignal) => {
                     debug!("[UiApp.update] self.udpSrv.lock ready");
                     // ui.label(format!(" i: {:?}", inputSignal.i));
-                    // ui.label(format!(" t: {:?}", inputSignal.t));
+                    ui.label(format!(" t: {:?}", inputSignal.t));
                     // ui.label(format!(" phi: {:?}", inputSignal.phi));
-                    // ui.label(format!(" t: {:?}", inputSignal.t));
                     ui.label(format!("length: {}", inputSignal.xy.len()));
                     // ui.label(format!("xyPoints length: {}", inputSig.xyPoints.len()));
                     // ui.end_row();
