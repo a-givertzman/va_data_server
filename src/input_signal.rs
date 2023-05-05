@@ -110,18 +110,16 @@ impl InputSignal {
         let cancel = this.lock().unwrap().cancel;
         let me = this.clone();
         let mut interval = Interval::new(this.lock().unwrap().period as f64);
-        let handle = Some(
-            thread::Builder::new().name("InputSignal tread".to_string()).spawn(move || {
-                debug!("[InputSignal] started in {:?}", thread::current().name().unwrap());
-                while !cancel {
-                    // debug!("tread: {:?} cycle started", thread::current().name().unwrap());
-                    this.lock().unwrap().next();
-                    interval.wait();
-                    // thread::sleep(time::Duration::from_micros(1000));
-                }
-            })?
-        );
-        me.lock().unwrap().handle = handle;
+        let handle = thread::Builder::new().name("InputSignal tread".to_string()).spawn(move || {
+            debug!("[InputSignal] started in {:?}", thread::current().name().unwrap());
+            while !cancel {
+                // debug!("tread: {:?} cycle started", thread::current().name().unwrap());
+                this.lock().unwrap().next();
+                interval.wait();
+                // thread::sleep(time::Duration::from_micros(1000));
+            }
+        }).unwrap();
+        me.lock().unwrap().handle = Some(handle);
         Ok(())
     }
     ///

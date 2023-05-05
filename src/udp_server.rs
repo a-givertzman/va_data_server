@@ -10,7 +10,7 @@ use num::Complex;
 use std::{
     net::UdpSocket, 
     time::Duration, 
-    sync::{Arc, Mutex}, thread,
+    sync::{Arc, Mutex}, thread::{self, JoinHandle},
 };
 
 use crate::{circular_queue::CircularQueue, input_signal::PI2};
@@ -32,6 +32,7 @@ const QSIZE: usize = 512;
 const QSIZE_DOUBLE: usize = QSIZE * 2;
 
 pub struct UdpServer {
+    handle: Option<JoinHandle<()>>,
     localAddr: String, //SocketAddr,
     remoteAddr: String, //SocketAddr,
     reconnectDelay: Duration,
@@ -63,14 +64,14 @@ impl UdpServer {
                 im: phiList[i].sin()
             }
         }).collect();
-        let delta = 1.0 / (f as f64);
         Self {
+            handle: None,
             localAddr: String::from(localAddr),
             remoteAddr: String::from(remoteAddr),
             reconnectDelay: match reconnectDelay {Some(rd) => rd, None => Duration::from_secs(3)},
             isConnected: false,
             cancel: false,
-            delta,
+            delta: delta,
             f,
             t: 0.0,
             complex0,
@@ -84,52 +85,53 @@ impl UdpServer {
     // pub fn run(this: Arc<Mutex<Self>>) -> Result<(), Box<dyn Error>> {
         debug!("{} starting...", logLoc);
         info!("{} enter", logLoc);
-        thread::Builder::new().name("UdpServer tread".to_string()).spawn(move || {
+        let me = this.clone();
+        let me1 = this.clone();
+        let cancel = this.lock().unwrap().cancel;
+        let localAddr = this.lock().unwrap().localAddr.clone();
+        let remoteAddr = this.lock().unwrap().remoteAddr.clone();
+        let reconnectDelay = this.lock().unwrap().reconnectDelay;
+        let handle = thread::Builder::new().name("UdpServer tread".to_string()).spawn(move || {
             debug!("{} started in {:?}", logLoc, thread::current().name().unwrap());
-            // me.lock().unwrap().listenStream(&mut stream);
-            let thisClone = this.clone();
-            let mut thisMutax = thisClone.lock().unwrap();
-            let cancel = thisMutax.cancel;
-            let localAddr = &thisMutax.localAddr.clone();
-            let remoteAddr = &thisMutax.remoteAddr.clone();
-            let reconnectDelay = thisMutax.reconnectDelay;
-            
             info!("{} started", logLoc);
             while !cancel {
-                info!("{} try to bind on: {:?}", logLoc, localAddr);
-                match UdpSocket::bind(localAddr) {
+                info!("{} try to bind on: {:?}", logLoc, localAddr.clone());
+                match UdpSocket::bind(localAddr.clone()) {
                     Ok(socket) => {
                         info!("{} ready on: {:?}\n", logLoc, localAddr);
-                        thisMutax.isConnected = true;
-                        info!("{} isConnected: {:?}\n", logLoc, thisMutax.isConnected);
+                        this.lock().unwrap().isConnected = true;
+                        info!("{} isConnected: {:?}\n", logLoc, this.lock().unwrap().isConnected);
                         let mut bufDouble = [0; QSIZE_DOUBLE];
                         let mut buf = [0; QSIZE];
                         let handshake = Self::handshake();
-                        info!("{} sending handshake({}): {:?}\n", logLoc, handshake.len(), handshake);
+                        info!("{} sending handshake({}): {:?}", logLoc, handshake.len(), handshake);
                         match socket.send_to(&handshake, remoteAddr) {
-                            Ok(_) => {},
+                            Ok(_) => {
+                                info!("{} handshake done\n", logLoc);
+                            },
                             Err(err) => {
                                 warn!("{} send error: {:#?}", logLoc, err);
                             },
                         };
                         loop {
+                            // debug!("{} reading from udp socket...", logLoc);
                             match socket.recv_from(&mut bufDouble) {
                                 Ok((amt, src)) => {
                                     // debug!("{} receaved bytes({}) from{:?}: {:?}", logLoc, amt, src, buf);
+                                    // debug!("{} receaved bytes({}) from{:?}: {:?}", logLoc, amt, src, bufDouble);
                                     this.lock().unwrap().enqueue(&bufDouble);
-
-                                    debug!("{} receaved bytes({}) from{:?}: {:?}", logLoc, amt, src, buf);
-                                    buf.fill(0);
-                                    bufDouble.fill(0)
+                                    // buf.fill(0);
+                                    // bufDouble.fill(0)
                                 },
                                 Err(err) => {
                                     warn!("{} read error: {:#?}", logLoc, err);
                                 },
                             };
+                            // std::thread::sleep(Duration::from_millis(100));
                         }
                     }
                     Err(err) => {
-                        thisMutax.isConnected = false;
+                        me1.lock().unwrap().isConnected = false;
                         debug!("{} binding error on: {:?}\n\tdetailes: {:?}", logLoc, localAddr, err);
                         std::thread::sleep(reconnectDelay);
                     }
@@ -138,10 +140,13 @@ impl UdpServer {
             }
             info!("{} exit", logLoc);
         }).unwrap();
+        me.lock().unwrap().handle = Some(handle);
         debug!("{} started\n", logLoc);
     }
     ///
     fn enqueue(&mut self, buf: &[u8; QSIZE_DOUBLE]) {
+        // const logLoc: &str = "[UdpServer.enqueue]";
+        // debug!("{} started..", logLoc);
                                     
         let mut value;
         let mut bytes = [0_u8; 2];
@@ -159,6 +164,7 @@ impl UdpServer {
             self.xy.push([self.t, value]);
             self.t += self.delta;
         }
+        // debug!("{} done/n", logLoc);
     }
     ///
     fn handshake() -> [u8; 2] {
