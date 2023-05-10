@@ -45,19 +45,52 @@ fn main() -> Result<(), Box<dyn Error>> {
     const N: usize = 32_768;
     const sampleRate: f32 = 2_048.0000;
     // const PI2f: f64 = (PI2 as f64) * sampleRate;
+    let inputSignal = Arc::new(Mutex::new(
+        InputSignal::new(
+            sampleRate, 
+            |phi| {
+                // debug!("build input signal in thread: {:?}", thread::current().name().unwrap());
+                10.0 * (phi * 10.0).sin()
+                + 10.005 * (phi * 50.0).sin()
+                + 10.006 * (phi * 100.0).sin()
+                + 10.007 * (phi * 500.0).sin()
+                + 10.10 * (phi * 1000.0).sin()
+                + 10.50 * (phi * 5000.0).sin()
+                + 10.60 * (phi * 6000.0).sin()
+                + 10.70 * (phi * 7000.0).sin()
+                + 10.80 * (phi * 8000.0).sin()
+                + 10.90 * (phi * 9000.0).sin()
+                + 11.00 * (phi * 10000.0).sin()
+                + 11.00 * (phi * 11000.0).sin()
+                + 12.00 * (phi * 12000.0).sin()
+                + 13.00 * (phi * 13000.0).sin()
+                + 14.00 * (phi * 14000.0).sin()
+                + 15.00 * (phi * 15000.0).sin()
+                + 16.00 * (phi * 16000.0).sin()
+                + 17.00 * (phi * 17000.0).sin()
+                + 18.00 * (phi * 18000.0).sin()
+                + 19.00 * (phi * 19000.0).sin()
+                + 30.00 * (phi * 30000.0).sin()
+                + 35.00 * (phi * 35000.0).sin()
+                + 40.00 * (phi * 40000.0).sin()
+            },
+            N,
+            None, // Some(0.0001),
+            )
+    ));
     // InputSignal::run(inputSignal.clone())?;
     debug!("[main] InputSignal ready\n");
 
 
-    // debug!("[main] creating TcpServer...");
-    // let tcpSrv = Arc::new(Mutex::new(
-    //     TcpServer::new(
-    //         "127.0.0.1:5180",
-    //         inputSignal.clone(),
-    //     )
-    // ));
-    // debug!("[main] TcpServer created");
-    // TcpServer::run(tcpSrv)?;
+    debug!("[main] creating TcpServer...");
+    let tcpSrv = Arc::new(Mutex::new(
+        TcpServer::new(
+            "127.0.0.1:5180",
+            inputSignal.clone(),
+        )
+    ));
+    debug!("[main] TcpServer created");
+    TcpServer::run(tcpSrv)?;
 
 
     let reconnectDelay = Duration::from_secs(3);
@@ -77,18 +110,18 @@ fn main() -> Result<(), Box<dyn Error>> {
     UdpServer::run(udpSrv.clone());
 
 
-    // let analyzeFft = Arc::new(Mutex::new(
-    //     AnalizeFft::new(
-    //         inputSignal.clone(),
-    //         sampleRate, 
-    //         N,
-    //     )
-    // ));
+    let analyzeFft = Arc::new(Mutex::new(
+        AnalizeFft::new(
+            inputSignal.clone(),
+            sampleRate, 
+            N,
+        )
+    ));
     // AnalizeFft::run(analyzeFft.clone())?;
 
     let uiApp = UiApp::new(
-        // inputSignal,
-        // analyzeFft,
+        inputSignal,
+        analyzeFft,
         udpSrv,
         Duration::from_secs_f64(10.0/60.0),
     );

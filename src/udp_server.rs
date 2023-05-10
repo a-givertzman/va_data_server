@@ -49,6 +49,7 @@ pub struct UdpServer {
     pub fftComplex: Vec<Complex<f64>>,
     pub xy: CircularQueue<[f64; 2]>,
     fft: Arc<dyn Fft<f64>>,
+    pub envelopeXy: Vec<[f64; 2]>,
 }
 
 impl UdpServer {
@@ -85,8 +86,9 @@ impl UdpServer {
             complex: CircularQueue::with_capacity_fill(fftBuflen, &mut vec![Complex{re: 0.0, im: 0.0}; fftBuflen]),
             fftBuflen,
             fftComplex: vec![Complex{re: 0.0, im: 0.0}; fftBuflen],
-            xy: CircularQueue::with_capacity_fill(QSIZE, &mut vec![[0.0, 0.0]; QSIZE]),
+            xy: CircularQueue::with_capacity_fill(QSIZE * 10, &mut vec![[0.0, 0.0]; QSIZE * 10]),
             fft: planner.plan_fft_forward(fftBuflen),
+            envelopeXy: vec![[0.0, 0.0]; fftBuflen],
     }
     }
     ///
@@ -171,7 +173,8 @@ impl UdpServer {
             );
             if self.complex.is_full() {
                 self.fftProcess();
-                self.complex.clear()
+                self.complex.clear();
+                self.buildEnvelope();
             }
             self.xy.push([self.t, value]);
             self.t += self.delta;
@@ -193,13 +196,36 @@ impl UdpServer {
     ///
     pub fn fftPoints(&self) -> Vec<[f64; 2]> {
         let mut points: Vec<[f64; 2]> = vec![];
-        let factor = 1.0 / ((self.fftBuflen / 2) as f64);
+        let factor = 1.0;// / ((self.fftBuflen / 2) as f64);
+        let mut x: f64;
+        let mut y: f64;
         for i in 0..self.fftBuflen / 2 {
-            let x = i as f64;
-            let y = (self.fftComplex[i].abs() * factor) as f64;
+            x = i as f64;
+            y = (self.fftComplex[i].abs() * factor) as f64;
             points.push([x, 0.0]);
             points.push([x, y]);
         }
         points
+    }
+    ///
+    /// 
+    fn buildEnvelope(&mut self) {
+        let len = self.fftBuflen / 2;
+        // let mut buf: heapless::spsc::Queue<f64, 3> = heapless::spsc::Queue::new();
+        const filterLen: usize = 256;
+        let mut filterBuf: CircularQueue<f64> = CircularQueue::with_capacity_fill(filterLen, &mut vec![0.0; filterLen]);
+        let factor = 1.0;// / ((self.fftBuflen / 2) as f64);
+        self.envelopeXy.clear();
+        let mut x: f64;
+        let mut y: f64;
+        let mut average: f64;
+        for i in 0..len {
+            x = i as f64;
+            y = (self.fftComplex[i].abs() * factor) as f64;
+            filterBuf.push(y);
+            average = 100000.0 + 0.1 * y  + (filterBuf.buffer().iter().sum::<f64>() / (filterLen as f64));
+            // self.envelopeXy.push([x, 0.0]);
+            self.envelopeXy.push([x, average]);
+        }        
     }
 }
