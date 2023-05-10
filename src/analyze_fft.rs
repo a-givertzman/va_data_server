@@ -117,35 +117,6 @@ impl AnalizeFft {
     pub fn cancel(&mut self) {
         self.cancel = true;
     }
-    //
-    //
-    // fn next(&mut self) {
-    //     // self.inputSignal.lock().unwrap().points.buffer().clone_into(&mut self.points);
-    //     let current = self.inputSignal.lock().unwrap().read();
-    //     self.phi = current[0];
-    //     self.t = current[1];
-    //     let input = current[2];
-    //     self.tList.push(self.t);
-    //     self.xyPoints.push([self.t, input]);
-    //     let re0 = (self.phi).cos();
-    //     let im0 = (self.phi).sin();
-    //     self.complex0Current = vec![[0.0, 0.0], [re0, im0]];
-    //     // self.complex0.push(
-    //     //     Complex{ 
-    //     //         re: re0,
-    //     //         im: im0,
-    //     //     }
-    //     // );
-    //     let re = input * re0;
-    //     let im = input * im0;
-    //     self.complexCurrent = vec![[0.0, 0.0], [re, im]];
-    //     // self.complex.push(
-    //     //     Complex{ 
-    //     //         re,
-    //     //         im,
-    //     //     }
-    //     // );
-    // }
     ///
     /// 
     fn fftProcess(&mut self) {

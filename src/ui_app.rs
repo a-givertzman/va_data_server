@@ -199,7 +199,7 @@ impl eframe::App for UiApp {
         //     });
         // });
         egui::Window::new("fft").show(ctx, |ui| {
-            let analyzeFft = self.analyzeFft.lock().unwrap();
+            let analyzeFft = self.udpSrv.lock().unwrap();
             // ui.label(format!("new fft: '{}'", 0));
             let points = analyzeFft.fftPoints();
             ui.label(format!("fftComplex length: {}", analyzeFft.fftComplex.len()));

@@ -6,14 +6,16 @@ use log::{
     debug,
     warn,
 };
-use num::Complex;
+use num::{Complex, complex::ComplexFloat};
+use rustfft::{FftPlanner, Fft};
 use std::{
     net::UdpSocket, 
     time::Duration, 
-    sync::{Arc, Mutex}, thread::{self, JoinHandle},
+    sync::{Arc, Mutex}, 
+    thread::{self, JoinHandle},
 };
-
 use crate::{circular_queue::CircularQueue, input_signal::PI2};
+
 // T, uc	QSIZE
 // 976.563	1 024
 // 488.281	2 048
@@ -43,7 +45,10 @@ pub struct UdpServer {
     pub t: f64,
     pub complex0: Vec<Complex<f64>>,
     pub complex: CircularQueue<Complex<f64>>,
+    pub fftBuflen: usize,
+    pub fftComplex: Vec<Complex<f64>>,
     pub xy: CircularQueue<[f64; 2]>,
+    fft: Arc<dyn Fft<f64>>,
 }
 
 impl UdpServer {
@@ -52,18 +57,20 @@ impl UdpServer {
         localAddr: &str,
         remoteAddr: &str,
         f: f32,
+        fftBuflen: usize,
         reconnectDelay: Option<Duration>,
     ) -> Self {
         let period = 1.0 / (f as f64);
-        let delta = period / (QSIZE as f64);
-        let iToNList: Vec<f64> = (0..QSIZE).into_iter().map(|i| {(i as f64) / (QSIZE as f64)}).collect();
+        let delta = period / (fftBuflen as f64);
+        let iToNList: Vec<f64> = (0..fftBuflen).into_iter().map(|i| {(i as f64) / (fftBuflen as f64)}).collect();
         let phiList: Vec<f64> = iToNList.clone().into_iter().map(|iToN| {PI2 * iToN}).collect();        
-        let complex0: Vec<Complex<f64>> = (0..QSIZE).into_iter().map(|i| {
+        let complex0: Vec<Complex<f64>> = (0..fftBuflen).into_iter().map(|i| {
             Complex {
                 re: phiList[i].cos(), 
                 im: phiList[i].sin()
             }
         }).collect();
+        let mut planner = FftPlanner::new();
         Self {
             handle: None,
             localAddr: String::from(localAddr),
@@ -75,9 +82,12 @@ impl UdpServer {
             f,
             t: 0.0,
             complex0,
-            complex: CircularQueue::with_capacity_fill(QSIZE, &mut vec![Complex{re: 0.0, im: 0.0}; QSIZE]),
+            complex: CircularQueue::with_capacity_fill(fftBuflen, &mut vec![Complex{re: 0.0, im: 0.0}; fftBuflen]),
+            fftBuflen,
+            fftComplex: vec![Complex{re: 0.0, im: 0.0}; fftBuflen],
             xy: CircularQueue::with_capacity_fill(QSIZE, &mut vec![[0.0, 0.0]; QSIZE]),
-        }
+            fft: planner.plan_fft_forward(fftBuflen),
+    }
     }
     ///
     pub fn run(this: Arc<Mutex<Self>>) -> () {
@@ -147,20 +157,22 @@ impl UdpServer {
     fn enqueue(&mut self, buf: &[u8; QSIZE_DOUBLE]) {
         // const logLoc: &str = "[UdpServer.enqueue]";
         // debug!("{} started..", logLoc);
-                                    
         let mut value;
         let mut bytes = [0_u8; 2];
         for i in 0..QSIZE {
             bytes[0] = buf[i * 2];
             bytes[1] = buf[i * 2 + 1];
             value = u16::from_be_bytes(bytes) as f64;
-            // buf[i] = u16::from_be_bytes(bytes);
             self.complex.push(
                 Complex {
                     re: value * self.complex0[i].re, 
                     im: value * self.complex0[i].im, 
                 },
             );
+            if self.complex.is_full() {
+                self.fftProcess();
+                self.complex.clear()
+            }
             self.xy.push([self.t, value]);
             self.t += self.delta;
         }
@@ -169,5 +181,25 @@ impl UdpServer {
     ///
     fn handshake() -> [u8; 2] {
         [SYN, EOT]
+    }
+    ///
+    /// 
+    fn fftProcess(&mut self) {
+        self.complex.buffer().clone_into(&mut self.fftComplex);
+        self.fft.process(&mut self.fftComplex);
+        // self.fft.process_with_scratch(&mut self.fftComplex);
+    }    
+    ///
+    ///
+    pub fn fftPoints(&self) -> Vec<[f64; 2]> {
+        let mut points: Vec<[f64; 2]> = vec![];
+        let factor = 1.0 / ((self.fftBuflen / 2) as f64);
+        for i in 0..self.fftBuflen / 2 {
+            let x = i as f64;
+            let y = (self.fftComplex[i].abs() * factor) as f64;
+            points.push([x, 0.0]);
+            points.push([x, y]);
+        }
+        points
     }
 }
