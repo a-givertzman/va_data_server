@@ -43,6 +43,8 @@ pub struct UiApp {
     renderDelay: Duration,
     realInputMinY: f64,
     realInputMaxY: f64,
+    realInputLen: usize,
+    realInputAutoscroll: bool,
     realInputAutoscaleY: bool,
 }
 
@@ -59,7 +61,9 @@ impl UiApp {
             udpSrv: udpSrv,
             renderDelay: renderDelay,
             realInputMinY: 0.0,
-            realInputMaxY: 100.0,
+            realInputMaxY: 2100.0,
+            realInputLen: 4096,
+            realInputAutoscroll: true,
             realInputAutoscaleY: true,
         }
     }
@@ -182,8 +186,10 @@ impl eframe::App for UiApp {
                         }
                         let mut min = format!("{}", self.realInputMinY);
                         let mut max = format!("{}", self.realInputMaxY);
+                        let mut len = format!("{}", self.realInputLen);
                         ui.text_edit_singleline(&mut min);
                         ui.text_edit_singleline(&mut max);
+                        ui.text_edit_singleline(&mut len);
                         let mut plot = Plot::new("real input");
                         if !self.realInputAutoscaleY {
                             self.realInputMinY = match min.parse() {Ok(value) => {value}, Err(_) => {self.realInputMinY}};
@@ -191,13 +197,26 @@ impl eframe::App for UiApp {
                             plot = plot.include_y(self.realInputMinY);
                             plot = plot.include_y(self.realInputMaxY);
                         }
+                        // let mut xy = [[0.0; 2]; self.realInputLen];
+                        // if !self.realInputAutoscroll {
+                        //     self.realInputLen = match max.parse() {Ok(value) => {value}, Err(_) => {self.realInputLen}};
+                        //     // plot = plot.include_y(self.realInputLen);
+                        //     let xy = inputSignal.xy.buffer().split_at(self.realInputLen).0.to_vec();
+                        //     plot.show(ui, |plotUi| {
+                        //         plotUi.points(
+                        //             Points::new(
+                        //                 xy
+                        //             ),
+                        //         );
+                        //     });
+                        // }
                         plot.show(ui, |plotUi| {
                             plotUi.points(
                                 Points::new(
                                     inputSignal.xy.buffer().clone()
                                 ),
                             );
-                        });
+                        });                        
                         // plot.show(ui, |plotUi| {
                         // });
                     },
@@ -229,23 +248,25 @@ impl eframe::App for UiApp {
             .show(ctx, |ui| {
                 let analyzeFft = self.udpSrv.lock().unwrap();
                 // ui.label(format!("new fft: '{}'", 0));
-                let points = analyzeFft.fftPoints();
+                // let points = analyzeFft.fftXy.clone();
                 ui.label(format!("fftComplex length: {}", analyzeFft.fftComplex.len()));
-                ui.label(format!("fftPoints length: {}", points.len()));
+                ui.label(format!("fftPoints length: {}", analyzeFft.fftXy.len()));
                 if ui.button("just button").clicked() {
                 }
                 Plot::new("fft")
                     .show(ui, |plotUi| {
                         plotUi.line(
                             Line::new(
-                                points,
+                                analyzeFft.fftXy.clone(),
                             ).color(Color32::LIGHT_GREEN),
                         );
-                        plotUi.points(
-                            Points::new(
-                                analyzeFft.envelopeXy.clone()
-                            ).color(Color32::DARK_RED),
-                        );
+                        if false {
+                            plotUi.points(
+                                Points::new(
+                                    analyzeFft.fftXyDif.clone()
+                                ).color(Color32::DARK_RED),
+                            );
+                        }
                     });
             });
         std::thread::sleep(self.renderDelay);

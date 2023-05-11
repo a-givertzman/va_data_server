@@ -14,7 +14,7 @@ use std::{
     sync::{Arc, Mutex}, 
     thread::{self, JoinHandle},
 };
-use crate::{circular_queue::CircularQueue, input_signal::PI2};
+use crate::{circular_queue::CircularQueue, input_signal::PI2, dsp_filters::average_filter::AverageFilter};
 
 // T, uc	QSIZE
 // 976.563	1 024
@@ -49,6 +49,8 @@ pub struct UdpServer {
     pub fftComplex: Vec<Complex<f64>>,
     pub xy: CircularQueue<[f64; 2]>,
     fft: Arc<dyn Fft<f64>>,
+    pub fftXy: Vec<[f64; 2]>,
+    pub fftXyDif: Vec<[f64; 2]>,
     pub envelopeXy: Vec<[f64; 2]>,
 }
 
@@ -86,8 +88,10 @@ impl UdpServer {
             complex: CircularQueue::with_capacity_fill(fftBuflen, &mut vec![Complex{re: 0.0, im: 0.0}; fftBuflen]),
             fftBuflen,
             fftComplex: vec![Complex{re: 0.0, im: 0.0}; fftBuflen],
-            xy: CircularQueue::with_capacity_fill(QSIZE * 10, &mut vec![[0.0, 0.0]; QSIZE * 10]),
+            xy: CircularQueue::with_capacity_fill(QSIZE * 100, &mut vec![[0.0, 0.0]; QSIZE * 100]),
             fft: planner.plan_fft_forward(fftBuflen),
+            fftXy: vec![[0.0, 0.0]; fftBuflen],
+            fftXyDif: vec![[0.0, 0.0]; fftBuflen],
             envelopeXy: vec![[0.0, 0.0]; fftBuflen],
     }
     }
@@ -174,7 +178,6 @@ impl UdpServer {
             if self.complex.is_full() {
                 self.fftProcess();
                 self.complex.clear();
-                self.buildEnvelope();
             }
             self.xy.push([self.t, value]);
             self.t += self.delta;
@@ -191,41 +194,74 @@ impl UdpServer {
         self.complex.buffer().clone_into(&mut self.fftComplex);
         self.fft.process(&mut self.fftComplex);
         // self.fft.process_with_scratch(&mut self.fftComplex);
+        self.buildFftXy();
+        self.buildEnvelope();
+        self.buildFftXyDif();
     }    
     ///
     ///
-    pub fn fftPoints(&self) -> Vec<[f64; 2]> {
-        let mut points: Vec<[f64; 2]> = vec![];
+    fn buildFftXy(&mut self) {
         let factor = 1.0;// / ((self.fftBuflen / 2) as f64);
         let mut x: f64;
         let mut y: f64;
-        for i in 0..self.fftBuflen / 2 {
+        self.fftXy.clear();
+        self.fftXy.push([0.0, 0.0]);
+        self.fftXy.push([0.0, 0.0]);
+    for i in 1..self.fftBuflen / 2 {
             x = i as f64;
             y = (self.fftComplex[i].abs() * factor) as f64;
-            points.push([x, 0.0]);
-            points.push([x, y]);
+            self.fftXy.push([x, 0.0]);
+            self.fftXy.push([x, y]);
         }
-        points
     }
     ///
     /// 
     fn buildEnvelope(&mut self) {
         let len = self.fftBuflen / 2;
         // let mut buf: heapless::spsc::Queue<f64, 3> = heapless::spsc::Queue::new();
-        const filterLen: usize = 256;
+        let filterLen: usize = 256;
         let mut filterBuf: CircularQueue<f64> = CircularQueue::with_capacity_fill(filterLen, &mut vec![0.0; filterLen]);
-        let factor = 1.0;// / ((self.fftBuflen / 2) as f64);
-        self.envelopeXy.clear();
+        // let factor = 1.0;// / ((self.fftBuflen / 2) as f64);
         let mut x: f64;
         let mut y: f64;
         let mut average: f64;
+        self.envelopeXy.clear();
         for i in 0..len {
-            x = i as f64;
-            y = (self.fftComplex[i].abs() * factor) as f64;
+            x = self.fftXy[i][0];
+            y = self.fftXy[i][1];
             filterBuf.push(y);
-            average = 100000.0 + 0.1 * y  + (filterBuf.buffer().iter().sum::<f64>() / (filterLen as f64));
+            average = filterBuf.buffer().iter().sum::<f64>() / (filterLen as f64);
+            average = y  + 10.0 * average;
+            // average = 100000.0 + 0.1 * y  + (filterBuf.buffer().iter().sum::<f64>() / (filterLen as f64));
             // self.envelopeXy.push([x, 0.0]);
             self.envelopeXy.push([x, average]);
-        }        
+        }
+    }
+    ///
+    /// Производная от FFT
+    fn buildFftXyDif(&mut self) {
+        let filterLen = 512;
+        let mut filter: AverageFilter<f64> = AverageFilter::new(filterLen);
+        let len = self.fftBuflen / 2;
+        let mut yDif: f64 = 0.0;
+        let mut y: f64;
+        let mut i: usize = 0;
+        let mut yPrev: f64 = self.fftXy[i][1];
+        self.fftXyDif.clear();
+        self.fftXyDif.push([0.0, 0.0]);
+        for j in 1..len {
+            i = j * 2 - 1;
+            y = self.fftXy[i][1];
+            // yDif = (y - yPrev).abs();
+            filter.add((y - yPrev).abs());
+            yDif = filter.value() * 100.0 + 1000000.0;
+            yPrev = y;
+            self.fftXyDif.push([self.fftXy[i][0] - (filterLen / 2) as f64, yDif]);
+        }
+        // for j in 0..(filterLen / 2) {
+        //     i = len - (filterLen / 2) + j;
+        //     self.fftXyDif.remove(0);
+        //     self.fftXyDif.push([self.fftXy[i][0], yDif]);
+        // }
     }
 }

@@ -86,7 +86,7 @@ impl<T> CircularQueue<T> {
     ///
     /// Returrns a reference to the inner buffer
     pub fn buffer(&self) -> &Vec<T> {
-        &self.data// [..self.capacity]
+        &self.data
     }
     ///
     /// Constructs a new, empty `CircularQueue<T>` with the requested capacity.
