@@ -26,12 +26,11 @@ use std::{
     }, 
     time::Duration, 
 };
-use analyze_fft::AnalizeFft;
-use input_signal::InputSignal;
+// use analyze_fft::AnalizeFft;
+// use input_signal::InputSignal;
 use ui_app::UiApp;
 use crate::{
     udp_server::UdpServer,
-    tcp_server::TcpServer,
 };
 
 ///
@@ -42,8 +41,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
 
 
-    const N: usize = 32_768;
-    const sampleRate: f32 = 2_048.0000;
+    // const N: usize = 32_768;
+    // const sampleRate: f32 = 2_048.0000;
     // const PI2f: f64 = (PI2 as f64) * sampleRate;
     // InputSignal::run(inputSignal.clone())?;
     debug!("[main] InputSignal ready\n");
@@ -68,8 +67,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         UdpServer::new(
             localAddr,
             remoteAddr,
-            48771.0,
-            48771,
+            155_339.0,
+            155_339,
             Some(reconnectDelay),
         )
     ));

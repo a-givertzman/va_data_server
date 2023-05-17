@@ -31,7 +31,7 @@ use crate::{circular_queue::CircularQueue, input_signal::PI2, dsp_filters::avera
 const SYN: u8 = 22;
 const EOT: u8 = 4;
 const QSIZE: usize = 512;
-const QSIZE_DOUBLE: usize = QSIZE * 2;
+const UDP_BUF_SIZE: usize = 1024;
 
 pub struct UdpServer {
     handle: Option<JoinHandle<()>>,
@@ -88,7 +88,7 @@ impl UdpServer {
             complex: CircularQueue::with_capacity_fill(fftBuflen, &mut vec![Complex{re: 0.0, im: 0.0}; fftBuflen]),
             fftBuflen,
             fftComplex: vec![Complex{re: 0.0, im: 0.0}; fftBuflen],
-            xy: CircularQueue::with_capacity_fill(QSIZE * 100, &mut vec![[0.0, 0.0]; QSIZE * 100]),
+            xy: CircularQueue::with_capacity_fill(QSIZE * 10, &mut vec![[0.0, 0.0]; QSIZE * 10]),
             fft: planner.plan_fft_forward(fftBuflen),
             fftXy: vec![[0.0, 0.0]; fftBuflen],
             fftXyDif: vec![[0.0, 0.0]; fftBuflen],
@@ -117,8 +117,7 @@ impl UdpServer {
                         info!("{} ready on: {:?}\n", logLoc, localAddr);
                         this.lock().unwrap().isConnected = true;
                         info!("{} isConnected: {:?}\n", logLoc, this.lock().unwrap().isConnected);
-                        let mut bufDouble = [0; QSIZE_DOUBLE];
-                        let mut buf = [0; QSIZE];
+                        let mut udpBuf = [0; UDP_BUF_SIZE];
                         let handshake = Self::handshake();
                         info!("{} sending handshake({}): {:?}", logLoc, handshake.len(), handshake);
                         match socket.send_to(&handshake, remoteAddr) {
@@ -131,11 +130,10 @@ impl UdpServer {
                         };
                         loop {
                             // debug!("{} reading from udp socket...", logLoc);
-                            match socket.recv_from(&mut bufDouble) {
-                                Ok((amt, src)) => {
-                                    // debug!("{} receaved bytes({}) from{:?}: {:?}", logLoc, amt, src, buf);
-                                    // debug!("{} receaved bytes({}) from{:?}: {:?}", logLoc, amt, src, bufDouble);
-                                    this.lock().unwrap().enqueue(&bufDouble);
+                            match socket.recv_from(&mut udpBuf) {
+                                Ok((_amt, _src)) => {
+                                    // debug!("{} receaved bytes({}) from{:?}: {:?}", logLoc, amt, src, udpBuf);
+                                    this.lock().unwrap().enqueue(&udpBuf);
                                     // buf.fill(0);
                                     // bufDouble.fill(0)
                                 },
@@ -143,6 +141,7 @@ impl UdpServer {
                                     warn!("{} read error: {:#?}", logLoc, err);
                                 },
                             };
+                            // debug!("{} udp read done", logLoc);
                             // std::thread::sleep(Duration::from_millis(100));
                         }
                     }
@@ -160,7 +159,7 @@ impl UdpServer {
         debug!("{} started\n", logLoc);
     }
     ///
-    fn enqueue(&mut self, buf: &[u8; QSIZE_DOUBLE]) {
+    fn enqueue(&mut self, buf: &[u8; UDP_BUF_SIZE]) {
         // const logLoc: &str = "[UdpServer.enqueue]";
         // debug!("{} started..", logLoc);
         let mut value;

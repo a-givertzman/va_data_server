@@ -176,6 +176,7 @@ impl eframe::App for UiApp {
                         // debug!("[UiApp.update] self.udpSrv.lock ready");
                         // ui.label(format!(" i: {:?}", inputSignal.i));
                         ui.label(format!(" t: {:?}", inputSignal.t));
+                        ui.end_row();
                         // ui.label(format!(" phi: {:?}", inputSignal.phi));
                         ui.label(format!("length: {}", inputSignal.xy.len()));
                         ui.checkbox(&mut self.realInputAutoscaleY, "Autoscale Y");
@@ -187,13 +188,32 @@ impl eframe::App for UiApp {
                         let mut min = format!("{}", self.realInputMinY);
                         let mut max = format!("{}", self.realInputMaxY);
                         let mut len = format!("{}", self.realInputLen);
-                        ui.text_edit_singleline(&mut min);
-                        ui.text_edit_singleline(&mut max);
-                        ui.text_edit_singleline(&mut len);
+                        if ui.text_edit_singleline(&mut min).changed() {
+                            if !self.realInputAutoscaleY {
+                                self.realInputMinY = match min.parse() {Ok(value) => {value}, Err(_) => {self.realInputMinY}};
+                            }    
+                        };
+                        if ui.text_edit_singleline(&mut max).changed() {
+                            if !self.realInputAutoscaleY {
+                                self.realInputMaxY = match max.parse() {Ok(value) => {value}, Err(_) => {self.realInputMaxY}};
+                            }
+                        };
+                        ui.end_row();
+                        ui.horizontal(|ui| {
+                            let btnSub = ui.add_sized([20., 20.], egui::Button::new("-"));
+                            if ui.text_edit_singleline(&mut len).changed() {
+                                self.realInputLen = match len.parse() {Ok(value) => {value}, Err(_) => {self.realInputLen}};
+                            };
+                            let btnAdd = ui.add_sized([20., 20.], egui::Button::new("+"));
+                            if btnSub.clicked() {
+                                self.realInputLen -= self.realInputLen / 4;
+                            }
+                            if btnAdd.clicked() {
+                                self.realInputLen += self.realInputLen / 4;
+                            }
+                        });
                         let mut plot = Plot::new("real input");
                         if !self.realInputAutoscaleY {
-                            self.realInputMinY = match min.parse() {Ok(value) => {value}, Err(_) => {self.realInputMinY}};
-                            self.realInputMaxY = match max.parse() {Ok(value) => {value}, Err(_) => {self.realInputMaxY}};
                             plot = plot.include_y(self.realInputMinY);
                             plot = plot.include_y(self.realInputMaxY);
                         }
@@ -213,12 +233,10 @@ impl eframe::App for UiApp {
                         plot.show(ui, |plotUi| {
                             plotUi.points(
                                 Points::new(
-                                    inputSignal.xy.buffer().clone()
+                                    ((inputSignal.xy.buffer())[0..self.realInputLen]).to_vec()
                                 ),
                             );
-                        });                        
-                        // plot.show(ui, |plotUi| {
-                        // });
+                        });
                     },
                     Err(err) => {
                         debug!("[UiApp.update] self.udpSrv.lock error: {:?}", err);
