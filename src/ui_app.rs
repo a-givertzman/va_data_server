@@ -21,17 +21,18 @@ use egui::{
         // PlotPoints, 
         Line
     }, 
-    Color32, Align2, 
+    Color32, Align2, Button, 
     // mutex::Mutex,
 };
 use crate::{
-    analyze_fft::{
-        AnalizeFft
-    }, 
-    input_signal::{
-        InputSignal,
-        PI,
-    }, udp_server::UdpServer
+    // analyze_fft::{
+    //     AnalizeFft
+    // }, 
+    // input_signal::{
+    //     InputSignal,
+    //     PI,
+    // }, 
+    udp_server::UdpServer
 };
 
 
@@ -40,12 +41,13 @@ pub struct UiApp {
     // pub inputSignal: Arc<Mutex<InputSignal>>,
     // pub analyzeFft: Arc<Mutex<AnalizeFft>>,
     pub udpSrv: Arc<Mutex<UdpServer>>,
-    renderDelay: Duration,
+    // renderDelay: Duration,
     realInputMinY: f64,
     realInputMaxY: f64,
     realInputLen: usize,
-    realInputAutoscroll: bool,
+    // realInputAutoscroll: bool,
     realInputAutoscaleY: bool,
+    events: Vec<String>,
 }
 
 impl UiApp {
@@ -53,26 +55,181 @@ impl UiApp {
         // inputSignal: Arc<Mutex<InputSignal>>, 
         // analyzeFft: Arc<Mutex<AnalizeFft>>,
         udpSrv: Arc<Mutex<UdpServer>>,
-        renderDelay: Duration,
+        // renderDelay: Duration,
     ) -> Self {
         Self {
             // inputSignal: inputSignal, 
             // analyzeFft: analyzeFft,
             udpSrv: udpSrv,
-            renderDelay: renderDelay,
+            // renderDelay: renderDelay,
             realInputMinY: 0.0,
             realInputMaxY: 2100.0,
-            realInputLen: 4096,
-            realInputAutoscroll: true,
+            realInputLen: 16,
+            // realInputAutoscroll: true,
             realInputAutoscaleY: true,
+            events: vec![],
         }
     }
 }
 
 impl eframe::App for UiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        let wSize = _frame.info().window_info.size;
+        let headHight = 34.0;
 
-        _frame.set_maximized(true);
+        egui::Window::new("Events")
+            .anchor(Align2::LEFT_BOTTOM, [0.0, 0.0])
+            .default_size(vec2(800.0, 0.5 * wSize.y - headHight))
+            .show(ctx, |ui| {
+                // let btn = Button::image_and_text(
+                //     Te
+                //     "text"
+                // );
+                if ui.button("Restart").clicked() {
+                    self.events.push("New event".to_string());
+                }
+                egui::ScrollArea::vertical()
+                .auto_shrink([false; 2])
+                .stick_to_bottom(true)
+                .show(ui, |ui| {
+                    for (i, event) in self.events.iter().enumerate() {
+                        ui.label(format!("{:?}\t| {:?}", i, event));
+                    }
+                });
+            });
+        egui::Window::new("real input")
+            .anchor(Align2::RIGHT_TOP, [0.0, 0.0])
+            .default_size(vec2(1200.0, 800.0))
+            .show(ctx, |ui| {
+                // debug!("[UiApp.update] self.udpSrv.lock...");
+                match self.udpSrv.lock() {
+                    Ok(mut inputSignal) => {
+                        // debug!("[UiApp.update] self.udpSrv.lock ready");
+                        // ui.label(format!(" i: {:?}", inputSignal.i));
+                        ui.label(format!(" t: {:?}", inputSignal.t));
+                        ui.end_row();
+                        // ui.label(format!(" phi: {:?}", inputSignal.phi));
+                        ui.label(format!("length: {}", inputSignal.xy.len()));
+                        ui.checkbox(&mut self.realInputAutoscaleY, "Autoscale Y");
+                        // ui.label(format!("xyPoints length: {}", inputSig.xyPoints.len()));
+                        // ui.end_row();
+                        if ui.button("Restart").clicked() {
+                            inputSignal.restart();
+                            // inputSignal.cancel();
+                        }
+                        let mut min = format!("{}", self.realInputMinY);
+                        let mut max = format!("{}", self.realInputMaxY);
+                        let mut len = format!("{}", self.realInputLen);
+                        if ui.text_edit_singleline(&mut min).changed() {
+                            if !self.realInputAutoscaleY {
+                                self.realInputMinY = match min.parse() {Ok(value) => {value}, Err(_) => {self.realInputMinY}};
+                            }    
+                        };
+                        if ui.text_edit_singleline(&mut max).changed() {
+                            if !self.realInputAutoscaleY {
+                                self.realInputMaxY = match max.parse() {Ok(value) => {value}, Err(_) => {self.realInputMaxY}};
+                            }
+                        };
+                        ui.end_row();
+                        ui.horizontal(|ui| {
+                            let btnSub = ui.add_sized([20., 20.], egui::Button::new("-"));
+                            if ui.text_edit_singleline(&mut len).changed() {
+                                self.realInputLen = match len.parse() {Ok(value) => {value}, Err(_) => {self.realInputLen}};
+                            };
+                            let btnAdd = ui.add_sized([20., 20.], egui::Button::new("+"));
+                            if btnSub.clicked() {
+                                self.realInputLen -= self.realInputLen / 4;
+                            }
+                            if btnAdd.clicked() {
+                                self.realInputLen += self.realInputLen / 4;
+                            }
+                        });
+                        let mut plot = Plot::new("real input");
+                        if !self.realInputAutoscaleY {
+                            plot = plot.include_y(self.realInputMinY);
+                            plot = plot.include_y(self.realInputMaxY);
+                        }
+                        // let mut xy = [[0.0; 2]; self.realInputLen];
+                        // if !self.realInputAutoscroll {
+                        //     self.realInputLen = match max.parse() {Ok(value) => {value}, Err(_) => {self.realInputLen}};
+                        //     // plot = plot.include_y(self.realInputLen);
+                        //     let xy = inputSignal.xy.buffer().split_at(self.realInputLen).0.to_vec();
+                        //     plot.show(ui, |plotUi| {
+                        //         plotUi.points(
+                        //             Points::new(
+                        //                 xy
+                        //             ),
+                        //         );
+                        //     });
+                        // }
+                        plot.show(ui, |plotUi| {
+                            plotUi.points(
+                                Points::new(
+                                    ((inputSignal.xy.buffer())[0..self.realInputLen]).to_vec()
+                                ),
+                            );
+                        });
+                    },
+                    Err(err) => {
+                        debug!("[UiApp.update] self.udpSrv.lock error: {:?}", err);
+                    },
+                };
+            });
+
+        // egui::Window::new("AnalyzeFft input").show(ctx, |ui| {
+        //     let analyzeFft = self.analyzeFft.lock().unwrap();
+        //     ui.label(format!(" t: {:?}", analyzeFft.t));
+        //     ui.label(format!("t length: {}", analyzeFft.tList.len()));
+        //     ui.label(format!("xyPoints length: {}", analyzeFft.xyPoints.len()));
+        //     // ui.end_row();
+        //     if ui.button("just button").clicked() {
+        //     }
+        //     Plot::new("input").show(ui, |plotUi| {
+        //         plotUi.points(
+        //             Points::new(
+        //                 analyzeFft.xyPoints.buffer().clone(),
+        //             ),
+        //         )
+        //     });
+        // });
+        egui::Window::new("fft")
+            .anchor(Align2::LEFT_TOP, [0.0, 0.0])
+            .default_size(vec2(800.0, 0.5 * wSize.y - headHight))
+            .show(ctx, |ui| {
+                let analyzeFft = self.udpSrv.lock().unwrap();
+                // ui.label(format!("new fft: '{}'", 0));
+                // let points = analyzeFft.fftXy.clone();
+                ui.label(format!("fftComplex length: {}", analyzeFft.fftComplex.len()));
+                ui.label(format!("fftPoints length: {}", analyzeFft.fftXy.len()));
+                if ui.button("just button").clicked() {
+                }
+                Plot::new("fft")
+                    .show(ui, |plotUi| {
+                        plotUi.line(
+                            Line::new(
+                                analyzeFft.fftXy.clone(),
+                            ).color(Color32::LIGHT_GREEN),
+                        );
+                        if false {
+                            plotUi.points(
+                                Points::new(
+                                    analyzeFft.fftXyDif.clone()
+                                ).color(Color32::DARK_RED),
+                            );
+                        }
+                    });
+            });
+        // std::thread::sleep(self.renderDelay);
+        ctx.request_repaint();
+    }
+}
+
+
+
+
+
+
+
         // CentralPanel::default().show(ctx, add_contents);
         // let phi = self.inputSignal.lock().unwrap().phi;
         // let f = self.inputSignal.lock().unwrap().f;
@@ -165,129 +322,3 @@ impl eframe::App for UiApp {
         //             )
         //         });
         //     });
-
-        egui::Window::new("real input")
-            .anchor(Align2::RIGHT_TOP, [0.0, 0.0])
-            .default_size(vec2(1200.0, 800.0))
-            .show(ctx, |ui| {
-                // debug!("[UiApp.update] self.udpSrv.lock...");
-                match self.udpSrv.lock() {
-                    Ok(inputSignal) => {
-                        // debug!("[UiApp.update] self.udpSrv.lock ready");
-                        // ui.label(format!(" i: {:?}", inputSignal.i));
-                        ui.label(format!(" t: {:?}", inputSignal.t));
-                        ui.end_row();
-                        // ui.label(format!(" phi: {:?}", inputSignal.phi));
-                        ui.label(format!("length: {}", inputSignal.xy.len()));
-                        ui.checkbox(&mut self.realInputAutoscaleY, "Autoscale Y");
-                        // ui.label(format!("xyPoints length: {}", inputSig.xyPoints.len()));
-                        // ui.end_row();
-                        if ui.button("Stop").clicked() {
-                            // inputSignal.cancel();
-                        }
-                        let mut min = format!("{}", self.realInputMinY);
-                        let mut max = format!("{}", self.realInputMaxY);
-                        let mut len = format!("{}", self.realInputLen);
-                        if ui.text_edit_singleline(&mut min).changed() {
-                            if !self.realInputAutoscaleY {
-                                self.realInputMinY = match min.parse() {Ok(value) => {value}, Err(_) => {self.realInputMinY}};
-                            }    
-                        };
-                        if ui.text_edit_singleline(&mut max).changed() {
-                            if !self.realInputAutoscaleY {
-                                self.realInputMaxY = match max.parse() {Ok(value) => {value}, Err(_) => {self.realInputMaxY}};
-                            }
-                        };
-                        ui.end_row();
-                        ui.horizontal(|ui| {
-                            let btnSub = ui.add_sized([20., 20.], egui::Button::new("-"));
-                            if ui.text_edit_singleline(&mut len).changed() {
-                                self.realInputLen = match len.parse() {Ok(value) => {value}, Err(_) => {self.realInputLen}};
-                            };
-                            let btnAdd = ui.add_sized([20., 20.], egui::Button::new("+"));
-                            if btnSub.clicked() {
-                                self.realInputLen -= self.realInputLen / 4;
-                            }
-                            if btnAdd.clicked() {
-                                self.realInputLen += self.realInputLen / 4;
-                            }
-                        });
-                        let mut plot = Plot::new("real input");
-                        if !self.realInputAutoscaleY {
-                            plot = plot.include_y(self.realInputMinY);
-                            plot = plot.include_y(self.realInputMaxY);
-                        }
-                        // let mut xy = [[0.0; 2]; self.realInputLen];
-                        // if !self.realInputAutoscroll {
-                        //     self.realInputLen = match max.parse() {Ok(value) => {value}, Err(_) => {self.realInputLen}};
-                        //     // plot = plot.include_y(self.realInputLen);
-                        //     let xy = inputSignal.xy.buffer().split_at(self.realInputLen).0.to_vec();
-                        //     plot.show(ui, |plotUi| {
-                        //         plotUi.points(
-                        //             Points::new(
-                        //                 xy
-                        //             ),
-                        //         );
-                        //     });
-                        // }
-                        plot.show(ui, |plotUi| {
-                            plotUi.points(
-                                Points::new(
-                                    ((inputSignal.xy.buffer())[0..self.realInputLen]).to_vec()
-                                ),
-                            );
-                        });
-                    },
-                    Err(err) => {
-                        debug!("[UiApp.update] self.udpSrv.lock error: {:?}", err);
-                    },
-                };
-            });
-
-        // egui::Window::new("AnalyzeFft input").show(ctx, |ui| {
-        //     let analyzeFft = self.analyzeFft.lock().unwrap();
-        //     ui.label(format!(" t: {:?}", analyzeFft.t));
-        //     ui.label(format!("t length: {}", analyzeFft.tList.len()));
-        //     ui.label(format!("xyPoints length: {}", analyzeFft.xyPoints.len()));
-        //     // ui.end_row();
-        //     if ui.button("just button").clicked() {
-        //     }
-        //     Plot::new("input").show(ui, |plotUi| {
-        //         plotUi.points(
-        //             Points::new(
-        //                 analyzeFft.xyPoints.buffer().clone(),
-        //             ),
-        //         )
-        //     });
-        // });
-        egui::Window::new("fft")
-            .anchor(Align2::LEFT_BOTTOM, [0.0, 0.0])
-            .default_size(vec2(800.0, 600.0))
-            .show(ctx, |ui| {
-                let analyzeFft = self.udpSrv.lock().unwrap();
-                // ui.label(format!("new fft: '{}'", 0));
-                // let points = analyzeFft.fftXy.clone();
-                ui.label(format!("fftComplex length: {}", analyzeFft.fftComplex.len()));
-                ui.label(format!("fftPoints length: {}", analyzeFft.fftXy.len()));
-                if ui.button("just button").clicked() {
-                }
-                Plot::new("fft")
-                    .show(ui, |plotUi| {
-                        plotUi.line(
-                            Line::new(
-                                analyzeFft.fftXy.clone(),
-                            ).color(Color32::LIGHT_GREEN),
-                        );
-                        if false {
-                            plotUi.points(
-                                Points::new(
-                                    analyzeFft.fftXyDif.clone()
-                                ).color(Color32::DARK_RED),
-                            );
-                        }
-                    });
-            });
-        std::thread::sleep(self.renderDelay);
-        ctx.request_repaint();
-    }
-}

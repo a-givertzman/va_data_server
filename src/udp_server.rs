@@ -11,7 +11,7 @@ use rustfft::{FftPlanner, Fft};
 use std::{
     net::UdpSocket, 
     time::Duration, 
-    sync::{Arc, Mutex}, 
+    sync::{Arc, Mutex, MutexGuard}, 
     thread::{self, JoinHandle},
 };
 use crate::{circular_queue::CircularQueue, input_signal::PI2, dsp_filters::average_filter::AverageFilter};
@@ -40,6 +40,7 @@ pub struct UdpServer {
     reconnectDelay: Duration,
     pub isConnected: bool,
     cancel: bool,
+    restart: bool,
     delta: f64,
     pub f: f32,
     pub t: f64,
@@ -81,6 +82,7 @@ impl UdpServer {
             reconnectDelay: match reconnectDelay {Some(rd) => rd, None => Duration::from_secs(3)},
             isConnected: false,
             cancel: false,
+            restart: false,
             delta: delta,
             f,
             t: 0.0,
@@ -96,23 +98,30 @@ impl UdpServer {
     }
     }
     ///
+    pub fn restart(&mut self) {
+        const logLoc: &str = "[UdpServer.restart]";
+        debug!("{} started...", logLoc);
+        self.restart = true;
+        self.cancel = true;
+        debug!("{} done", logLoc);
+    }
+    ///
     pub fn run(this: Arc<Mutex<Self>>) -> () {
-        const logLoc: &str = "[UdpServer.run]";
     // pub fn run(this: Arc<Mutex<Self>>) -> Result<(), Box<dyn Error>> {
+        const logLoc: &str = "[UdpServer.run]";
         debug!("{} starting...", logLoc);
         info!("{} enter", logLoc);
         let me = this.clone();
         let me1 = this.clone();
-        let cancel = this.lock().unwrap().cancel;
         let localAddr = this.lock().unwrap().localAddr.clone();
         let remoteAddr = this.lock().unwrap().remoteAddr.clone();
         let reconnectDelay = this.lock().unwrap().reconnectDelay;
         let handle = thread::Builder::new().name("UdpServer tread".to_string()).spawn(move || {
             debug!("{} started in {:?}", logLoc, thread::current().name().unwrap());
             info!("{} started", logLoc);
-            while !cancel {
+            while !(this.lock().unwrap().cancel) {
                 info!("{} try to bind on: {:?}", logLoc, localAddr.clone());
-                match UdpSocket::bind(localAddr.clone()) {
+                let result = match UdpSocket::bind(localAddr.clone()) {
                     Ok(socket) => {
                         info!("{} ready on: {:?}\n", logLoc, localAddr);
                         this.lock().unwrap().isConnected = true;
@@ -120,19 +129,28 @@ impl UdpServer {
                         let mut udpBuf = [0; UDP_BUF_SIZE];
                         let handshake = Self::handshake();
                         info!("{} sending handshake({}): {:?}", logLoc, handshake.len(), handshake);
-                        match socket.send_to(&handshake, remoteAddr) {
-                            Ok(_) => {
-                                info!("{} handshake done\n", logLoc);
-                            },
-                            Err(err) => {
-                                warn!("{} send error: {:#?}", logLoc, err);
-                            },
+                        // match socket.send_to(&handshake, remoteAddr.clone()) {
+                        //     Ok(_) => {
+                        //         info!("{} handshake done\n", logLoc);
+                        //     },
+                        //     Err(err) => {
+                        //         warn!("{} send error: {:#?}", logLoc, err);
+                        //     },
+                        // };
+                        // socket.set_read_timeout(Some(Duration::from_millis(3000))).unwrap();
+                        let mut cancel = match this.try_lock() {
+                            Ok(m) => {
+                                m.cancel
+                            }
+                            Err(_) => {
+                                false
+                            }
                         };
-                        loop {
+                        while !cancel {
                             // debug!("{} reading from udp socket...", logLoc);
                             match socket.recv_from(&mut udpBuf) {
                                 Ok((_amt, _src)) => {
-                                    // debug!("{} receaved bytes({}) from{:?}: {:?}", logLoc, amt, src, udpBuf);
+                                    // debug!("{} receaved bytes({}) from{:?}: {:?}", logLoc, _amt, _src, udpBuf);
                                     this.lock().unwrap().enqueue(&udpBuf);
                                     // buf.fill(0);
                                     // bufDouble.fill(0)
@@ -143,17 +161,45 @@ impl UdpServer {
                             };
                             // debug!("{} udp read done", logLoc);
                             // std::thread::sleep(Duration::from_millis(100));
+                            cancel = match this.try_lock() {
+                                Ok(m) => {
+                                    m.cancel
+                                }
+                                Err(_) => {
+                                    false
+                                }
+                            };
+    
                         }
+                        info!("{} exit read cycle", logLoc);
+                        Some(socket)
                     }
                     Err(err) => {
                         me1.lock().unwrap().isConnected = false;
                         debug!("{} binding error on: {:?}\n\tdetailes: {:?}", logLoc, localAddr, err);
                         std::thread::sleep(reconnectDelay);
+                        None
                     }
+                };
+                if this.lock().unwrap().restart {
+                    info!("{} restart detected", logLoc);
+                    match result {
+                        Some(socket) => {
+                            info!("{} trying to drop socket...", logLoc);
+                            drop(socket);
+                            info!("{} drop socket - done", logLoc);
+                        },
+                        None => {},
+                    }
+                    this.lock().unwrap().cancel = false;
+                    this.lock().unwrap().restart = false;
+                } else {
+                    info!("{} sleep reconnectDelay: {:?}", logLoc, reconnectDelay);
+                    std::thread::sleep(reconnectDelay);    
                 }
-                std::thread::sleep(reconnectDelay);
             }
             info!("{} exit", logLoc);
+            this.lock().unwrap().cancel = false;
         }).unwrap();
         me.lock().unwrap().handle = Some(handle);
         debug!("{} started\n", logLoc);
@@ -165,9 +211,10 @@ impl UdpServer {
         let mut value;
         let mut bytes = [0_u8; 2];
         for i in 0..QSIZE {
-            bytes[0] = buf[i * 2];
-            bytes[1] = buf[i * 2 + 1];
+            bytes[1] = buf[i * 2];
+            bytes[0] = buf[i * 2 + 1];
             value = u16::from_be_bytes(bytes) as f64;
+            // debug!("{} value: {:?}", logLoc, value);
             self.complex.push(
                 Complex {
                     re: value * self.complex0[i].re, 

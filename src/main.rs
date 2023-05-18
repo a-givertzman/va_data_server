@@ -37,7 +37,8 @@ use crate::{
 /// 
 fn main() -> Result<(), Box<dyn Error>> {
     env::set_var("RUST_LOG", "debug");
-    env::set_var("RUST_BACKTRACE", "1");
+    // env::set_var("RUST_BACKTRACE", "1");
+    env::set_var("RUST_BACKTRACE", "full");
     env_logger::init();
 
 
@@ -67,8 +68,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         UdpServer::new(
             localAddr,
             remoteAddr,
-            155_339.0,
-            155_339,
+            250_000.0,
+            250_000,
             Some(reconnectDelay),
         )
     ));
@@ -89,16 +90,20 @@ fn main() -> Result<(), Box<dyn Error>> {
         // inputSignal,
         // analyzeFft,
         udpSrv,
-        Duration::from_secs_f64(10.0/60.0),
+        // Duration::from_secs_f64(10.0/60.0),
     );
-    env::set_var("RUST_BACKTRACE", "full");
-    let native_options = eframe::NativeOptions {
-        initial_window_size: Some(egui::Vec2 { x: 1024.0, y: 768.0 }),
-        ..Default::default()
-    };    
+    // let native_options = eframe::NativeOptions {
+    //     initial_window_size: Some(egui::Vec2 { x: 1024.0, y: 768.0 }),
+    //     ..Default::default()
+    // };    
     eframe::run_native(
         "Rpi-FFT-App", 
-        native_options, 
+        eframe::NativeOptions {
+            // fullscreen: true,
+            maximized: true,
+            // initial_window_size: Some(egui::Vec2 { x: 1024.0, y: 768.0 }),
+            ..Default::default()
+        }, 
         Box::new(|_| Box::new(
             uiApp,
         ))    
