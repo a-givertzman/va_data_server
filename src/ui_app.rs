@@ -47,6 +47,9 @@ pub struct UiApp {
     realInputLen: usize,
     // realInputAutoscroll: bool,
     realInputAutoscaleY: bool,
+    fftMinY: f64,
+    fftMaxY: f64,
+    fftAutoscaleY: bool,
     events: Vec<String>,
 }
 
@@ -62,11 +65,14 @@ impl UiApp {
             // analyzeFft: analyzeFft,
             udpSrv: udpSrv,
             // renderDelay: renderDelay,
-            realInputMinY: 0.0,
+            realInputMinY: -100.0,
             realInputMaxY: 2100.0,
             realInputLen: 16,
             // realInputAutoscroll: true,
-            realInputAutoscaleY: true,
+            realInputAutoscaleY: false,
+            fftMinY: -1000.0,
+            fftMaxY: 4000000.0,
+            fftAutoscaleY: false,        
             events: vec![],
         }
     }
@@ -166,8 +172,13 @@ impl eframe::App for UiApp {
                             plotUi.points(
                                 Points::new(
                                     ((inputSignal.xy.buffer())[0..self.realInputLen]).to_vec()
-                                ),
+                                ).color(Color32::YELLOW).radius(2.0).filled(true),
                             );
+                            plotUi.line(
+                                Line::new(
+                                    ((inputSignal.xy.buffer())[0..self.realInputLen]).to_vec()
+                                ).color(Color32::GRAY),
+                            );                        
                         });
                     },
                     Err(err) => {
@@ -203,8 +214,12 @@ impl eframe::App for UiApp {
                 ui.label(format!("fftPoints length: {}", analyzeFft.fftXy.len()));
                 if ui.button("just button").clicked() {
                 }
-                Plot::new("fft")
-                    .show(ui, |plotUi| {
+                let mut plot = Plot::new("fft");
+                if !self.fftAutoscaleY {
+                    plot = plot.include_y(self.fftMinY);
+                    plot = plot.include_y(self.fftMaxY);
+                }                
+                plot.show(ui, |plotUi| {
                         plotUi.line(
                             Line::new(
                                 analyzeFft.fftXy.clone(),

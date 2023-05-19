@@ -68,8 +68,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         UdpServer::new(
             localAddr,
             remoteAddr,
-            250_000.0,
-            250_000,
+            320_000.0,
+            320_000,
             Some(reconnectDelay),
         )
     ));

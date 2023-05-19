@@ -253,7 +253,7 @@ impl UdpServer {
         self.fftXy.clear();
         self.fftXy.push([0.0, 0.0]);
         self.fftXy.push([0.0, 0.0]);
-    for i in 1..self.fftBuflen / 2 {
+    for i in 1..self.fftBuflen / 10 {
             x = i as f64;
             y = (self.fftComplex[i].abs() * factor) as f64;
             self.fftXy.push([x, 0.0]);
@@ -263,7 +263,7 @@ impl UdpServer {
     ///
     /// 
     fn buildEnvelope(&mut self) {
-        let len = self.fftBuflen / 2;
+        let len = self.fftBuflen / 10;
         // let mut buf: heapless::spsc::Queue<f64, 3> = heapless::spsc::Queue::new();
         let filterLen: usize = 256;
         let mut filterBuf: CircularQueue<f64> = CircularQueue::with_capacity_fill(filterLen, &mut vec![0.0; filterLen]);
@@ -288,7 +288,7 @@ impl UdpServer {
     fn buildFftXyDif(&mut self) {
         let filterLen = 512;
         let mut filter: AverageFilter<f64> = AverageFilter::new(filterLen);
-        let len = self.fftBuflen / 2;
+        let len = self.fftBuflen / 10;
         let mut yDif: f64 = 0.0;
         let mut y: f64;
         let mut i: usize = 0;
