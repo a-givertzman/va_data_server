@@ -100,8 +100,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         "Rpi-FFT-App", 
         eframe::NativeOptions {
             // fullscreen: true,
-            maximized: true,
-            // initial_window_size: Some(egui::Vec2 { x: 1024.0, y: 768.0 }),
+            // maximized: true,
+            initial_window_size: Some(egui::Vec2 { x: 1920.0, y: 840.0 }),
             ..Default::default()
         }, 
         Box::new(|_| Box::new(

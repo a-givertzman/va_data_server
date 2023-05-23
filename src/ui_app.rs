@@ -145,9 +145,15 @@ impl eframe::App for UiApp {
                             let btnAdd = ui.add_sized([20., 20.], egui::Button::new("+"));
                             if btnSub.clicked() {
                                 self.realInputLen -= self.realInputLen / 4;
+                                if self.realInputLen < 1 {
+                                    self.realInputLen = 1;
+                                }
                             }
                             if btnAdd.clicked() {
                                 self.realInputLen += self.realInputLen / 4;
+                                if self.realInputLen > inputSignal.xy.len() {
+                                    self.realInputLen = inputSignal.xy.len();
+                                }
                             }
                         });
                         let mut plot = Plot::new("real input");
@@ -171,12 +177,12 @@ impl eframe::App for UiApp {
                         plot.show(ui, |plotUi| {
                             plotUi.points(
                                 Points::new(
-                                    ((inputSignal.xy.buffer())[0..self.realInputLen]).to_vec()
-                                ).color(Color32::YELLOW).radius(2.0).filled(true),
+                                    ((inputSignal.xy)[0..self.realInputLen]).to_vec()
+                                ).color(Color32::LIGHT_GREEN).radius(2.0).filled(true),
                             );
                             plotUi.line(
                                 Line::new(
-                                    ((inputSignal.xy.buffer())[0..self.realInputLen]).to_vec()
+                                    ((inputSignal.xy)[0..self.realInputLen]).to_vec()
                                 ).color(Color32::GRAY),
                             );                        
                         });
@@ -214,6 +220,18 @@ impl eframe::App for UiApp {
                 ui.label(format!("fftPoints length: {}", analyzeFft.fftXy.len()));
                 if ui.button("just button").clicked() {
                 }
+                let mut min = format!("{}", self.fftMinY);
+                let mut max = format!("{}", self.fftMaxY);
+                if ui.text_edit_singleline(&mut min).changed() {
+                    if !self.fftAutoscaleY {
+                        self.fftMinY = match min.parse() {Ok(value) => {value}, Err(_) => {self.fftMinY}};
+                    }    
+                };
+                if ui.text_edit_singleline(&mut max).changed() {
+                    if !self.fftAutoscaleY {
+                        self.fftMaxY = match max.parse() {Ok(value) => {value}, Err(_) => {self.fftMaxY}};
+                    }
+                };
                 let mut plot = Plot::new("fft");
                 if !self.fftAutoscaleY {
                     plot = plot.include_y(self.fftMinY);
