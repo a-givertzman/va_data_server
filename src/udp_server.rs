@@ -11,8 +11,9 @@ use rustfft::{FftPlanner, Fft};
 use std::{
     net::UdpSocket, 
     time::Duration, 
-    sync::{Arc, Mutex, MutexGuard}, 
+    sync::{Arc, Mutex}, 
     thread::{self, JoinHandle},
+    collections::BTreeMap,
 };
 use crate::{circular_queue::CircularQueue, input_signal::PI2, dsp_filters::average_filter::AverageFilter};
 
@@ -31,7 +32,7 @@ use crate::{circular_queue::CircularQueue, input_signal::PI2, dsp_filters::avera
 const SYN: u8 = 22;
 const EOT: u8 = 4;
 const QSIZE: usize = 512;
-const UDP_BUF_SIZE: usize = 1024 + 4;
+const UDP_BUF_SIZE: usize = 1024 + 3;
 
 pub struct UdpServer {
     handle: Option<JoinHandle<()>>,
@@ -55,6 +56,7 @@ pub struct UdpServer {
     pub fftXy: Vec<[f64; 2]>,
     pub fftXyDif: Vec<[f64; 2]>,
     pub envelopeXy: Vec<[f64; 2]>,
+    pub limitationsXy: Vec<[f64; 2]>,
 }
 
 impl UdpServer {
@@ -101,8 +103,40 @@ impl UdpServer {
             fftXy: vec![[0.0, 0.0]; fftXyLen],
             fftXyDif: vec![[0.0, 0.0]; fftBuflen],
             envelopeXy: vec![[0.0, 0.0]; fftBuflen],
+            limitationsXy: Self::buildLimitations(fftXyLen),
+        }
     }
+    ///
+    /// 
+    fn buildLimitations(len: usize) -> Vec<[f64; 2]> {
+        const logLoc: &str = "[UdpServer.buildLimitations]";
+        let mut res = vec![]; //vec![[0.0, 0.0]; len];
+        const low: f64 = 50.0;
+        let linitationsConf: BTreeMap<usize, f64> = BTreeMap::from([                
+            (0, low),
+            (100 - 10, 300.0),
+            (100 + 10, low),
+            (381 - 10, 300.0),
+            (381 + 10, low),
+            (3000 - 100, 300.0),
+            (3000 + 100, low),
+            (4000 - 100, 300.0),
+            (4000 + 100, low),
+            (len, low),
+        ]);
+        let mut prevAmplitude = 0.0;
+        for (freq, amplitude) in linitationsConf {
+            res.push([freq as f64, prevAmplitude]);
+            res.push([freq as f64, amplitude]);
+            prevAmplitude = amplitude;
+        }
+        debug!("{} limitations: {:?}", logLoc, res);
+        // for i in 0..len {
+        //     res[i] = [0.0, 0.0];
+        // }
+        res
     }
+    ///
     ///
     pub fn restart(&mut self) {
         const logLoc: &str = "[UdpServer.restart]";
@@ -120,7 +154,7 @@ impl UdpServer {
         let me = this.clone();
         let me1 = this.clone();
         let localAddr = this.lock().unwrap().localAddr.clone();
-        let remoteAddr = this.lock().unwrap().remoteAddr.clone();
+        let _remoteAddr = this.lock().unwrap().remoteAddr.clone();
         let reconnectDelay = this.lock().unwrap().reconnectDelay;
         let handle = thread::Builder::new().name("UdpServer tread".to_string()).spawn(move || {
             debug!("{} started in {:?}", logLoc, thread::current().name().unwrap());
@@ -216,7 +250,7 @@ impl UdpServer {
         // debug!("{} started..", logLoc);
         let mut value;
         let mut bytes = [0_u8; 2];
-        let offset = 4;
+        let offset = 3;
         for i in 0..QSIZE {
             bytes[1] = buf[i * 2 + offset];
             bytes[0] = buf[i * 2 + offset + 1];
@@ -300,7 +334,7 @@ impl UdpServer {
         let filterLen = 512;
         let mut filter: AverageFilter<f64> = AverageFilter::new(filterLen);
         let len = self.fftXyLen;
-        let mut yDif: f64 = 0.0;
+        let mut yDif: f64;
         let mut y: f64;
         let mut i: usize = 0;
         let mut yPrev: f64 = self.fftXy[i][1];

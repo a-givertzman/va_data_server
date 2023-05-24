@@ -70,8 +70,8 @@ impl UiApp {
             realInputLen: 16,
             // realInputAutoscroll: true,
             realInputAutoscaleY: false,
-            fftMinY: -1000.0,
-            fftMaxY: 4000000.0,
+            fftMinY: -10.0,
+            fftMaxY: 400.0,
             fftAutoscaleY: false,        
             events: vec![],
         }
@@ -238,19 +238,24 @@ impl eframe::App for UiApp {
                     plot = plot.include_y(self.fftMaxY);
                 }                
                 plot.show(ui, |plotUi| {
-                        plotUi.line(
-                            Line::new(
-                                analyzeFft.fftXy.clone(),
-                            ).color(Color32::LIGHT_GREEN),
+                    plotUi.line(
+                        Line::new(
+                            analyzeFft.fftXy.clone(),
+                        ).color(Color32::lightGreen10),
+                    );
+                    plotUi.line(
+                        Line::new(
+                            analyzeFft.limitationsXy.clone(),
+                        ).color(Color32::orangeAccent),
+                    );                    
+                    if false {
+                        plotUi.points(
+                            Points::new(
+                                analyzeFft.fftXyDif.clone()
+                            ).color(Color32::DARK_RED),
                         );
-                        if false {
-                            plotUi.points(
-                                Points::new(
-                                    analyzeFft.fftXyDif.clone()
-                                ).color(Color32::DARK_RED),
-                            );
-                        }
-                    });
+                    }
+                });
             });
         // std::thread::sleep(self.renderDelay);
         ctx.request_repaint();
@@ -258,8 +263,19 @@ impl eframe::App for UiApp {
 }
 
 
+pub trait ExtendedColors {
+    const orange: Color32 = Color32::from_rgb(255, 152, 0);
+    const orangeAccent: Color32 = Color32::from_rgb(255, 152, 0);
+    const lightGreen10: Color32 = Color32::from_rgba_premultiplied(0x90, 0xEE, 0x90, 10);
+    fn with_opacity(&self, opacity: u8) -> Self;
+}
 
-
+impl ExtendedColors for Color32 {
+    fn with_opacity(&self, opacity: u8) -> Self {
+        let [r, g, b, _] = self.to_array();
+        Color32::from_rgba_premultiplied(r, g, b, opacity)
+    }
+}
 
 
 
