@@ -42,8 +42,9 @@ pub struct UdpServer {
     pub isConnected: bool,
     cancel: bool,
     restart: bool,
-    delta: f64,
+    pub delta: f64,
     pub f: f32,
+    pub samplingPeriod: f64,
     pub t: f64,
     pub complex0: Vec<Complex<f64>>,
     pub complex: CircularQueue<Complex<f64>>,
@@ -54,6 +55,7 @@ pub struct UdpServer {
     fft: Arc<dyn Fft<f64>>,
     pub fftXyLen: usize,
     pub fftXy: Vec<[f64; 2]>,
+    pub fftAlarmXy: Vec<[f64; 2]>,
     pub fftXyDif: Vec<[f64; 2]>,
     pub envelopeXy: Vec<[f64; 2]>,
     pub limitationsXy: Vec<[f64; 2]>,
@@ -68,8 +70,8 @@ impl UdpServer {
         fftBuflen: usize,
         reconnectDelay: Option<Duration>,
     ) -> Self {
-        let period = 1.0 / (f as f64);
-        let delta = period / (fftBuflen as f64);
+        let samplingPeriod = 1.0 / (f as f64);
+        let delta = samplingPeriod / (fftBuflen as f64);
         let iToNList: Vec<f64> = (0..fftBuflen).into_iter().map(|i| {(i as f64) / (fftBuflen as f64)}).collect();
         let phiList: Vec<f64> = iToNList.into_iter().map(|iToN| {PI2 * iToN}).collect();        
         let complex0: Vec<Complex<f64>> = (0..fftBuflen).into_iter().map(|i| {
@@ -91,6 +93,7 @@ impl UdpServer {
             restart: false,
             delta: delta,
             f,
+            samplingPeriod,
             t: 0.0,
             complex0,
             complex: CircularQueue::with_capacity_fill(fftBuflen, &mut vec![Complex{re: 0.0, im: 0.0}; fftBuflen]),
@@ -101,6 +104,7 @@ impl UdpServer {
             fft: planner.plan_fft_forward(fftBuflen),
             fftXyLen: fftXyLen,
             fftXy: vec![[0.0, 0.0]; fftXyLen],
+            fftAlarmXy: vec![[0.0, 0.0]; fftXyLen],
             fftXyDif: vec![[0.0, 0.0]; fftBuflen],
             envelopeXy: vec![[0.0, 0.0]; fftBuflen],
             limitationsXy: Self::buildLimitations(fftXyLen),
@@ -192,8 +196,6 @@ impl UdpServer {
                                 Ok((_amt, _src)) => {
                                     // debug!("{} receaved bytes({}) from{:?}: {:?}", logLoc, _amt, _src, udpBuf);
                                     this.lock().unwrap().enqueue(&udpBuf);
-                                    // buf.fill(0);
-                                    // bufDouble.fill(0)
                                 },
                                 Err(err) => {
                                     warn!("{} read error: {:#?}", logLoc, err);
@@ -291,19 +293,36 @@ impl UdpServer {
     ///
     ///
     fn buildFftXy(&mut self) {
-        let factor = 1.0 / ((self.fftBuflen / 2) as f64);
+        let factor = 1.0 / ((self.fftBuflen / 4) as f64);
         let mut x: f64;
         let mut y: f64;
         self.fftXy.clear();
+        self.fftAlarmXy.clear();
         self.fftXy.push([0.0, 0.0]);
         self.fftXy.push([0.0, 0.0]);
         for i in 1..self.fftXyLen {
             x = i as f64;
             y = self.fftComplex[i].abs() * factor;
             // y = ((self.fftComplex[i].re.powi(2) + self.fftComplex[i].im.powi(2)) * factor) as f64;
+            if self.fftPointOverflowed(x, y) {
+                self.fftAlarmXy.push([x, 0.0]);
+                self.fftAlarmXy.push([x, y]);    
+            }
             self.fftXy.push([x, 0.0]);
             self.fftXy.push([x, y]);
         }
+    }
+    ///
+    ///
+    fn fftPointOverflowed(&self, freq: f64, amplitude: f64) -> bool {
+        let mut range = Range {min: 0.0, max: 0.0};
+        for [x, amplitudeLimit] in self.limitationsXy.clone() {
+            range.max = x;
+            if range.contains(freq) {
+                return amplitude >= amplitudeLimit;
+            }
+        }
+        false
     }
     ///
     /// 
@@ -354,5 +373,16 @@ impl UdpServer {
         //     self.fftXyDif.remove(0);
         //     self.fftXyDif.push([self.fftXy[i][0], yDif]);
         // }
+    }
+}
+
+
+struct Range {
+    pub min: f64,
+    pub max: f64,
+}
+impl Range {
+    fn contains(&self, value: f64) -> bool {
+        self.min  <= value && value <= self.max
     }
 }
