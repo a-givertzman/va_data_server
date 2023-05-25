@@ -1,5 +1,6 @@
 #![allow(non_snake_case)]
 
+#[path = "../src/circular_queue.rs"]
 mod circular_queue;
 
 use log::info;

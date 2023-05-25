@@ -36,12 +36,9 @@ const UDP_BUF_SIZE: usize = 1024 + 3;
 
 pub struct UdpServer {
     handle: Option<JoinHandle<()>>,
-    localAddr: String, //SocketAddr,
-    remoteAddr: String, //SocketAddr,
-    reconnectDelay: Duration,
-    pub isConnected: bool,
     cancel: bool,
     restart: bool,
+    queue: heapless::spsc::Queue,
     pub delta: f64,
     pub f: f32,
     pub samplingPeriod: f64,

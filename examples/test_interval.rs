@@ -1,5 +1,6 @@
 #![allow(non_snake_case)]
 
+#[path = "../src/interval.rs"]
 mod interval;
 use std::{
     env,
