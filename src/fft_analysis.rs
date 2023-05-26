@@ -5,12 +5,12 @@ use log::{
     info,
     // trace,
     debug,
-    warn,
+    // warn,
 };
 use num::{Complex, complex::ComplexFloat};
 use rustfft::{FftPlanner, Fft};
 use std::{
-    sync::{Arc, Mutex, mpsc}, 
+    sync::{Arc, Mutex}, 
     thread::{self, JoinHandle},
     collections::BTreeMap, f64::consts::PI,
 };
@@ -18,8 +18,8 @@ use crate::{
     circular_queue::CircularQueue, 
     dsp_filters::average_filter::AverageFilter, 
     udp_server::udp_server::{
+        UdpServer,
         UDP_BUF_SIZE,
-        MAX_QUEUE_SIZE, UdpServer, 
     }
 };
 
@@ -39,7 +39,6 @@ use crate::{
 pub struct FftAnalysis {
     handle: Option<JoinHandle<()>>,
     cancel: bool,
-    restart: bool,
     receiver: Arc<ConcurrentQueue<[u8; UDP_BUF_SIZE]>>,
     udpServer: Arc<Mutex<UdpServer>>,
     pub delta: f64,
@@ -85,7 +84,6 @@ impl FftAnalysis {
         Self {
             handle: None,
             cancel: false,
-            restart: false,
             receiver: receiver,
             udpServer: udpServer,
             delta: delta,

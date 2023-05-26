@@ -13,13 +13,13 @@ pub mod udp_server {
     use std::{
         net::UdpSocket, 
         time::Duration, 
-        sync::{Arc, Mutex, mpsc}, 
+        sync::{Arc, Mutex}, 
         thread::{self, JoinHandle},
     };
 
     pub(crate) const SYN: u8 = 22;
     pub(crate) const EOT: u8 = 4;
-    pub(crate) const QSIZE: usize = 512;
+    // pub(crate) const QSIZE: usize = 512;
     pub(crate) const UDP_BUF_SIZE: usize = 1024 + 3;
     pub(crate) const MAX_QUEUE_SIZE: usize = 1024;
     
@@ -126,7 +126,6 @@ pub mod udp_server {
                                         false
                                     }
                                 };
-        
                             }
                             info!("{} exit read cycle", logLoc);
                             Some(socket)
@@ -173,21 +172,6 @@ pub mod udp_server {
                     warn!("{} error add to queue: {:?}", logLoc, err);
                 },
             };
-    
-            // let mut value;
-            // let mut bytes = [0_u8; 2];
-            // let offset = 3;
-            // for i in 0..QSIZE {
-            //     bytes[1] = buf[i * 2 + offset];
-            //     bytes[0] = buf[i * 2 + offset + 1];
-            //     value = u16::from_be_bytes(bytes) as f64;
-            //     // debug!("{} value: {:?}", logLoc, value);
-            //     self.queue.enqueue([self.t, value]);
-            //     if self.queue.len() > self.xyLen {
-            //         self.queue.remove(0);
-            //     }
-            // }
-            // debug!("{} done/n", logLoc);
         }
         ///
         fn handshake() -> [u8; 2] {
