@@ -1,14 +1,23 @@
 #![allow(non_snake_case)]
 #![allow(non_upper_case_globals)]
 
+#[path = "../src/circular_queue.rs"]
 mod circular_queue;
+#[path = "../src/input_signal.rs"]
 mod input_signal;
+#[path = "../src/dsp_filters/mod.rs"]
 mod dsp_filters;
+#[path = "../src/analyze_fft.rs"]
 mod analyze_fft;
+#[path = "../src/ui_app.rs"]
 mod ui_app;
+#[path = "../src/interval.rs"]
 mod interval;
+#[path = "../src/tcp_server.rs"]
 mod tcp_server;
+#[path = "../src/udp_server.rs"]
 mod udp_server;
+#[path = "../src/ds_point.rs"]
 mod ds_point;
 
 use log::{

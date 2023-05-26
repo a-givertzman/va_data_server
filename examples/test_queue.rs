@@ -1,4 +1,6 @@
 #![allow(non_snake_case)]
+
+#[path = "../src/circular_queue.rs"]
 mod circular_queue;
 
 use std::time::Instant;
@@ -7,7 +9,7 @@ use circular_queue::CircularQueue;
 use heapless::spsc::Queue;
 
 const COUNT: usize = 1000;
-const QSIZE: usize = 65_536;
+const QSIZE: usize = 320_000;
 const QSIZEADD: usize = QSIZE + 1;
 fn main() {
     let mut queue: Queue<f64, QSIZEADD> = Queue::new();
@@ -17,7 +19,7 @@ fn main() {
         // println!("buf: {:?}", buf);
         let start = Instant::now();
         testQueue(&mut queue, &mut buf);
-        println!("elapsed: {:?}", start.elapsed());
+        println!("heapless::spsc::Queue elapsed: {:?}", start.elapsed());
     }
     {
         buf = vec![0.0; QSIZE];
@@ -25,7 +27,7 @@ fn main() {
         let mut cQueue: CircularQueue<f64> = CircularQueue::with_capacity(QSIZE);
         let start = Instant::now();
         testCQeque(&mut cQueue, &mut buf);
-        println!("elapsed: {:?}", start.elapsed());
+        println!("CircularQueue elapsed: {:?}", start.elapsed());
     }
     {
         buf = vec![0.0; QSIZE];
@@ -33,7 +35,7 @@ fn main() {
         let mut cQueue: CircularQueue<f64> = CircularQueue::with_capacity(QSIZE);
         let start = Instant::now();
         testCQeque1(&mut cQueue, &mut buf);
-        println!("elapsed: {:?}", start.elapsed());
+        println!("CircularQueue elapsed: {:?}", start.elapsed());
     }
     {
         buf = vec![0.0; QSIZE];
@@ -44,7 +46,7 @@ fn main() {
         // }
         let start = Instant::now();
         testCQeque2(&mut cQueue, &mut buf);
-        println!("elapsed: {:?}", start.elapsed());
+        println!("CircularQueue elapsed: {:?}", start.elapsed());
     }
 }
 
@@ -76,9 +78,10 @@ fn testQueue(queue: &mut Queue<f64, QSIZEADD>, buf: &mut Vec<f64>) {
 fn testCQeque(cQueue: &mut CircularQueue<f64>, buf: &mut [f64]) {
     for i in 0..COUNT {
         cQueue.push(i as f64);
-        
-        for (i, item) in cQueue.iter().enumerate() {
+        let mut i = 0;
+        for item in cQueue.iter() {
             buf[i] = *item;
+            i += 1;
             // println!("readed buf: {:?}\t{:?}", i, item);
         }
         // println!("readed: {:?}", &buf);
