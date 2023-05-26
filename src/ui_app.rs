@@ -31,7 +31,8 @@ use crate::{
     //     InputSignal,
     //     PI,
     // }, 
-    udp_server::UdpServer
+    udp_server::udp_server::UdpServer,
+    fft_analysis::FftAnalysis,
 };
 
 
@@ -40,6 +41,7 @@ pub struct UiApp {
     // pub inputSignal: Arc<Mutex<InputSignal>>,
     // pub analyzeFft: Arc<Mutex<AnalizeFft>>,
     pub udpSrv: Arc<Mutex<UdpServer>>,
+    pub fftAnalysis: Arc<Mutex<FftAnalysis>>,
     // renderDelay: Duration,
     realInputMinY: f64,
     realInputMaxY: f64,
@@ -57,13 +59,12 @@ impl UiApp {
         // inputSignal: Arc<Mutex<InputSignal>>, 
         // analyzeFft: Arc<Mutex<AnalizeFft>>,
         udpSrv: Arc<Mutex<UdpServer>>,
+        fftAnalysis: Arc<Mutex<FftAnalysis>>,
         // renderDelay: Duration,
     ) -> Self {
         Self {
-            // inputSignal: inputSignal, 
-            // analyzeFft: analyzeFft,
             udpSrv: udpSrv,
-            // renderDelay: renderDelay,
+            fftAnalysis: fftAnalysis,
             realInputMinY: -100.0,
             realInputMaxY: 3100.0,
             realInputLen: 1024,
@@ -83,7 +84,7 @@ impl eframe::App for UiApp {
         let headHight = 34.0;
         self.events.clear();
         let mut even = false;
-        for [freq, ampl] in self.udpSrv.lock().unwrap().fftAlarmXy.clone() {
+        for [freq, ampl] in self.fftAnalysis.lock().unwrap().fftAlarmXy.clone() {
             if even {
                 self.events.push(format!("Частота {:.1} Гц,  амплитуда {:.2} ", freq, ampl))
             }
@@ -116,7 +117,7 @@ impl eframe::App for UiApp {
             .default_size(vec2(0.4 * wSize.x, 0.45 * wSize.y - headHight))
             .show(ctx, |ui| {
                 // debug!("[UiApp.update] self.udpSrv.lock...");
-                match self.udpSrv.lock() {
+                match self.fftAnalysis.lock() {
                     Ok(mut inputSignal) => {
                         // debug!("[UiApp.update] self.udpSrv.lock ready");
                         // ui.label(format!(" i: {:?}", inputSignal.i));
@@ -128,12 +129,13 @@ impl eframe::App for UiApp {
                             ui.separator();
                             ui.add_sized(
                                 [200.0, 16.0], 
-                                egui::Label::new(format!(" t: {:?}", inputSignal.t)),
+                                // egui::Label::new(format!(" t: {:?}", inputSignal.t * 1.0e6)),
+                                egui::Label::new(format!(" length: {:?} us", (self.realInputLen as f64) * inputSignal.delta * 1.0e6)),
                             );
                             ui.separator();
                             // ui.label(format!(" t: {:?}", inputSignal.t));
                             // ui.label(format!(" phi: {:?}", inputSignal.phi));
-                            ui.label(format!("length: {}", inputSignal.xy.len()));
+                            ui.label(format!("max length: {}", inputSignal.xy.len()));
                             ui.checkbox(&mut self.realInputAutoscaleY, "Autoscale Y");
                             // ui.label(format!("xyPoints length: {}", inputSig.xyPoints.len()));
                             if ui.button("Restart").clicked() {
@@ -234,7 +236,7 @@ impl eframe::App for UiApp {
             .anchor(Align2::LEFT_TOP, [0.0, 0.0])
             .default_size(vec2(0.6 * wSize.x, 1.0 * wSize.y - headHight))
             .show(ctx, |ui| {
-                let analyzeFft = self.udpSrv.lock().unwrap();
+                let analyzeFft = self.fftAnalysis.lock().unwrap();
                 // ui.label(format!("new fft: '{}'", 0));
                 // let points = analyzeFft.fftXy.clone();
                 ui.label(format!("fftComplex length: {}", analyzeFft.fftComplex.len()));

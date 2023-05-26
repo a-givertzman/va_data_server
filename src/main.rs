@@ -2,12 +2,10 @@
 #![allow(non_upper_case_globals)]
 
 mod circular_queue;
-mod input_signal;
 mod dsp_filters;
-mod analyze_fft;
+mod fft_analysis;
 mod ui_app;
 mod interval;
-mod tcp_server;
 mod udp_server;
 mod ds_point;
 
@@ -26,11 +24,10 @@ use std::{
     }, 
     time::Duration, 
 };
-// use analyze_fft::AnalizeFft;
-// use input_signal::InputSignal;
-use ui_app::UiApp;
 use crate::{
-    udp_server::UdpServer,
+    ui_app::UiApp,
+    udp_server::udp_server::UdpServer, 
+    fft_analysis::FftAnalysis,
 };
 
 ///
@@ -68,13 +65,24 @@ fn main() -> Result<(), Box<dyn Error>> {
         UdpServer::new(
             localAddr,
             remoteAddr,
-            320_000.0,
-            320_000,
             Some(reconnectDelay),
         )
     ));
     debug!("[main] UdpServer created");
     UdpServer::run(udpSrv.clone());
+
+
+    debug!("[main] creating FftAnalysis...");
+    let fftAnalysis = Arc::new(Mutex::new(
+        FftAnalysis::new(
+            320_000.0,
+            320_000,
+            udpSrv.clone().lock().unwrap().receiver.clone(),
+            udpSrv.clone(),
+        )
+    ));
+    debug!("[main] FftAnalysis created");
+    FftAnalysis::run(fftAnalysis.clone());
 
 
     // let analyzeFft = Arc::new(Mutex::new(
@@ -87,15 +95,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     // AnalizeFft::run(analyzeFft.clone())?;
 
     let uiApp = UiApp::new(
-        // inputSignal,
-        // analyzeFft,
         udpSrv,
-        // Duration::from_secs_f64(10.0/60.0),
+        fftAnalysis,
     );
-    // let native_options = eframe::NativeOptions {
-    //     initial_window_size: Some(egui::Vec2 { x: 1024.0, y: 768.0 }),
-    //     ..Default::default()
-    // };    
+
+  
     eframe::run_native(
         "Rpi-FFT-App", 
         eframe::NativeOptions {

@@ -1,5 +1,6 @@
 #![allow(non_snake_case)]
 
+use concurrent_queue::ConcurrentQueue;
 use log::{
     info,
     // trace,
@@ -9,13 +10,18 @@ use log::{
 use num::{Complex, complex::ComplexFloat};
 use rustfft::{FftPlanner, Fft};
 use std::{
-    net::UdpSocket, 
-    time::Duration, 
-    sync::{Arc, Mutex}, 
+    sync::{Arc, Mutex, mpsc}, 
     thread::{self, JoinHandle},
-    collections::BTreeMap,
+    collections::BTreeMap, f64::consts::PI,
 };
-use crate::{circular_queue::CircularQueue, input_signal::PI2, dsp_filters::average_filter::AverageFilter};
+use crate::{
+    circular_queue::CircularQueue, 
+    dsp_filters::average_filter::AverageFilter, 
+    udp_server::udp_server::{
+        UDP_BUF_SIZE,
+        MAX_QUEUE_SIZE, UdpServer, 
+    }
+};
 
 // T, uc	QSIZE
 // 976.563	1 024
@@ -29,16 +35,13 @@ use crate::{circular_queue::CircularQueue, input_signal::PI2, dsp_filters::avera
 // 3.815	262 144
 // 1.907	524 288
 
-const SYN: u8 = 22;
-const EOT: u8 = 4;
-const QSIZE: usize = 512;
-const UDP_BUF_SIZE: usize = 1024 + 3;
 
-pub struct UdpServer {
+pub struct FftAnalysis {
     handle: Option<JoinHandle<()>>,
     cancel: bool,
     restart: bool,
-    queue: heapless::spsc::Queue,
+    receiver: Arc<ConcurrentQueue<[u8; UDP_BUF_SIZE]>>,
+    udpServer: Arc<Mutex<UdpServer>>,
     pub delta: f64,
     pub f: f32,
     pub samplingPeriod: f64,
@@ -58,19 +61,18 @@ pub struct UdpServer {
     pub limitationsXy: Vec<[f64; 2]>,
 }
 
-impl UdpServer {
+impl FftAnalysis {
     ///
     pub fn new(
-        localAddr: &str,
-        remoteAddr: &str,
         f: f32,
         fftBuflen: usize,
-        reconnectDelay: Option<Duration>,
+        receiver: Arc<ConcurrentQueue<[u8; UDP_BUF_SIZE]>>,
+        udpServer: Arc<Mutex<UdpServer>>,
     ) -> Self {
         let samplingPeriod = 1.0 / (f as f64);
         let delta = samplingPeriod / (fftBuflen as f64);
         let iToNList: Vec<f64> = (0..fftBuflen).into_iter().map(|i| {(i as f64) / (fftBuflen as f64)}).collect();
-        let phiList: Vec<f64> = iToNList.into_iter().map(|iToN| {PI2 * iToN}).collect();        
+        let phiList: Vec<f64> = iToNList.into_iter().map(|iToN| {PI * 2.0 * iToN}).collect();        
         let complex0: Vec<Complex<f64>> = (0..fftBuflen).into_iter().map(|i| {
             Complex {
                 re: phiList[i].cos(), 
@@ -82,12 +84,10 @@ impl UdpServer {
         let mut planner = FftPlanner::new();
         Self {
             handle: None,
-            localAddr: String::from(localAddr),
-            remoteAddr: String::from(remoteAddr),
-            reconnectDelay: match reconnectDelay {Some(rd) => rd, None => Duration::from_secs(3)},
-            isConnected: false,
             cancel: false,
             restart: false,
+            receiver: receiver,
+            udpServer: udpServer,
             delta: delta,
             f,
             samplingPeriod,
@@ -110,7 +110,7 @@ impl UdpServer {
     ///
     /// 
     fn buildLimitations(len: usize) -> Vec<[f64; 2]> {
-        const logLoc: &str = "[UdpServer.buildLimitations]";
+        const logLoc: &str = "[FftAnalysis.buildLimitations]";
         let mut res = vec![]; //vec![[0.0, 0.0]; len];
         const low: f64 = 50.0;
         let linitationsConf: BTreeMap<usize, f64> = BTreeMap::from([                
@@ -140,117 +140,51 @@ impl UdpServer {
     ///
     ///
     pub fn restart(&mut self) {
-        const logLoc: &str = "[UdpServer.restart]";
+        const logLoc: &str = "[FftAnalysis.restart]";
         debug!("{} started...", logLoc);
-        self.restart = true;
-        self.cancel = true;
+        self.udpServer.lock().unwrap().restart();
         debug!("{} done", logLoc);
     }
     ///
     pub fn run(this: Arc<Mutex<Self>>) -> () {
-    // pub fn run(this: Arc<Mutex<Self>>) -> Result<(), Box<dyn Error>> {
-        const logLoc: &str = "[UdpServer.run]";
+        const logLoc: &str = "[FftAnalysis.run]";
         debug!("{} starting...", logLoc);
         info!("{} enter", logLoc);
         let me = this.clone();
-        let me1 = this.clone();
-        let localAddr = this.lock().unwrap().localAddr.clone();
-        let _remoteAddr = this.lock().unwrap().remoteAddr.clone();
-        let reconnectDelay = this.lock().unwrap().reconnectDelay;
-        let handle = thread::Builder::new().name("UdpServer tread".to_string()).spawn(move || {
+        // let me1 = this.clone();
+        let receiver = this.clone().lock().unwrap().receiver.clone();
+        let handle = thread::Builder::new().name("FftAnalysis tread".to_string()).spawn(move || {
             debug!("{} started in {:?}", logLoc, thread::current().name().unwrap());
             info!("{} started", logLoc);
-            while !(this.lock().unwrap().cancel) {
-                info!("{} try to bind on: {:?}", logLoc, localAddr.clone());
-                let result = match UdpSocket::bind(localAddr.clone()) {
-                    Ok(socket) => {
-                        info!("{} ready on: {:?}\n", logLoc, localAddr);
-                        this.lock().unwrap().isConnected = true;
-                        info!("{} isConnected: {:?}\n", logLoc, this.lock().unwrap().isConnected);
-                        let mut udpBuf = [0; UDP_BUF_SIZE];
-                        let handshake = Self::handshake();
-                        info!("{} sending handshake({}): {:?}", logLoc, handshake.len(), handshake);
-                        // match socket.send_to(&handshake, remoteAddr.clone()) {
-                        //     Ok(_) => {
-                        //         info!("{} handshake done\n", logLoc);
-                        //     },
-                        //     Err(err) => {
-                        //         warn!("{} send error: {:#?}", logLoc, err);
-                        //     },
-                        // };
-                        // socket.set_read_timeout(Some(Duration::from_millis(3000))).unwrap();
-                        let mut cancel = match this.try_lock() {
-                            Ok(m) => {
-                                m.cancel
-                            }
-                            Err(_) => {
-                                false
-                            }
-                        };
-                        while !cancel {
-                            // debug!("{} reading from udp socket...", logLoc);
-                            match socket.recv_from(&mut udpBuf) {
-                                Ok((_amt, _src)) => {
-                                    // debug!("{} receaved bytes({}) from{:?}: {:?}", logLoc, _amt, _src, udpBuf);
-                                    this.lock().unwrap().enqueue(&udpBuf);
-                                },
-                                Err(err) => {
-                                    warn!("{} read error: {:#?}", logLoc, err);
-                                },
-                            };
-                            // debug!("{} udp read done", logLoc);
-                            // std::thread::sleep(Duration::from_millis(100));
-                            cancel = match this.try_lock() {
-                                Ok(m) => {
-                                    m.cancel
-                                }
-                                Err(_) => {
-                                    false
-                                }
-                            };
-    
+            // let receiver = receiver.lock().unwrap();
+            while !(this.clone().lock().unwrap().cancel) {
+                // let mut buf = Some(Arc::new([0u8; UDP_BUF_SIZE]));
+                while !receiver.is_empty() {
+                    match receiver.pop() {
+                        Ok(buf) => {
+                            // debug!("{} received buf {:?}", logLoc, buf);
+                            this.lock().unwrap().enqueue(buf);
                         }
-                        info!("{} exit read cycle", logLoc);
-                        Some(socket)
-                    }
-                    Err(err) => {
-                        me1.lock().unwrap().isConnected = false;
-                        debug!("{} binding error on: {:?}\n\tdetailes: {:?}", logLoc, localAddr, err);
-                        std::thread::sleep(reconnectDelay);
-                        None
-                    }
-                };
-                if this.lock().unwrap().restart {
-                    info!("{} restart detected", logLoc);
-                    match result {
-                        Some(socket) => {
-                            info!("{} trying to drop socket...", logLoc);
-                            drop(socket);
-                            info!("{} drop socket - done", logLoc);
+                        Err(err) => {
+                            debug!("{} receive error: {:?}", logLoc, err);
                         },
-                        None => {},
                     }
-                    this.lock().unwrap().cancel = false;
-                    this.lock().unwrap().restart = false;
-                } else {
-                    info!("{} sleep reconnectDelay: {:?}", logLoc, reconnectDelay);
-                    std::thread::sleep(reconnectDelay);    
                 }
             }
             info!("{} exit", logLoc);
-            this.lock().unwrap().cancel = false;
+            // this.lock().unwrap().cancel = false;
         }).unwrap();
         me.lock().unwrap().handle = Some(handle);
         debug!("{} started\n", logLoc);
     }
     ///
-    fn enqueue(&mut self, buf: &[u8; UDP_BUF_SIZE]) {
-        // const logLoc: &str = "[UdpServer.enqueue]";
+    fn enqueue(&mut self, buf: [u8; UDP_BUF_SIZE]) {
+        // const logLoc: &str = "[FftAnalysis.enqueue]";
         // debug!("{} started..", logLoc);
         let mut value;
         let mut bytes = [0_u8; 2];
         let offset = 3;
-        for i in 0..QSIZE {
+        for i in 0..(UDP_BUF_SIZE - offset) / 2 {
             bytes[1] = buf[i * 2 + offset];
             bytes[0] = buf[i * 2 + offset + 1];
             value = u16::from_be_bytes(bytes) as f64;
@@ -265,17 +199,13 @@ impl UdpServer {
                 self.fftProcess();
                 self.complex.clear();
             }
-            self.xy.push([self.t, value]);
+            self.xy.push([self.t * 1.0e6, value]);
             if self.xy.len() > self.xyLen {
                 self.xy.remove(0);
             }
             self.t += self.delta;
         }
         // debug!("{} done/n", logLoc);
-    }
-    ///
-    fn handshake() -> [u8; 2] {
-        [SYN, EOT]
     }
     ///
     /// 
