@@ -1,4 +1,5 @@
 #![allow(non_snake_case)]
+#![allow(non_upper_case_globals)]
 
 use std;
 use std::fs;
@@ -23,7 +24,7 @@ impl DsConfig {
 }
 
 #[serde_with::skip_serializing_none]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DsLineConf {
     // #[serde(flatten)]
     pub name: Option<String>,

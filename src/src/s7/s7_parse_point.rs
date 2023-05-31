@@ -1,16 +1,17 @@
 #![allow(non_snake_case)]
+#![allow(non_upper_case_globals)]
 
 use std::array::TryFromSliceError;
 
 use chrono::{DateTime, Utc};
 use log::{
     // info, 
-    // debug, 
+    debug, 
     warn,
-    error, 
+    // error, 
 };
 
-use crate::ds::{ds_config::{DsPointConf}};
+use crate::ds::{ds_config::{DsPointConf}, ds_status::DsStatus};
 
 
 // #[derive(Debug, Clone)]
@@ -31,10 +32,12 @@ pub trait ParsePoint<T> {
     fn isChanged(&self) -> bool;
 }
 
-
+///
+/// 
 #[derive(Debug, Clone)]
 pub struct S7ParsePointBool {
-    value: bool,
+    pub value: bool,
+    pub status: DsStatus,
     isChanged: bool,
     pub path: String,
     pub name: String,
@@ -58,6 +61,7 @@ impl S7ParsePointBool {
     ) -> S7ParsePointBool {
         S7ParsePointBool {
             value: false,
+            status: DsStatus::Invalid,
             isChanged: false,
             path: path,
             name: name,
@@ -82,17 +86,22 @@ impl ParsePoint<bool> for S7ParsePointBool {
             Ok(newVal) => {
                 if newVal != self.value {
                     self.value = newVal;
+                    self.status = DsStatus::Ok;
                     self.timestamp = timestamp;
                     self.isChanged = true;
                 }        
             },
             Err(e) => {
-                warn!("[S7ParsePoint<i16>.addRaw] convertion error: {:#?}", e);
+                self.status = DsStatus::Invalid;
+                warn!("[S7ParsePoint<bool>.addRaw] convertion error: {:?}", e);
             }
         }
     }
     ///
     fn convert(&self, bytes: &Vec<u8>, start: usize, bit: usize) -> Result<bool, TryFromSliceError> {
+        // debug!("[S7ParsePoint<bool>.convert] start: {},  end: {:?}", start, start + 2);
+        // let raw: [u8; 2] = (bytes[start..(start + 2)]).try_into().unwrap();
+        // debug!("[S7ParsePoint<bool>.convert] raw: {:?}", raw);
         match bytes[start..(start + 2)].try_into() {
             Ok(v) => {
                 let i = i16::from_be_bytes(v);
@@ -100,7 +109,7 @@ impl ParsePoint<bool> for S7ParsePointBool {
                 Ok(b > 0)
             },
             Err(e) => {
-                error!("ERROR in S7ParsePoint<i16>: {}", e);
+                debug!("[S7ParsePoint<bool>.convert] error: {}", e);
                 Err(e)
             }
         }
@@ -111,17 +120,12 @@ impl ParsePoint<bool> for S7ParsePointBool {
         self.isChanged
     }
 }
-
 ///
-/// add new value to bee parsed
-/// if new value is not equal to current, then current will be updated with new one
-// impl<T> S7ParsePoint<T> {
-
-// }
-///
+/// 
 #[derive(Debug, Clone)]
 pub struct S7ParsePointInt {
-    value: i16,
+    pub value: i16,
+    pub status: DsStatus,
     isChanged: bool,
     pub path: String,
     pub name: String,
@@ -146,6 +150,7 @@ impl S7ParsePointInt {
     ) -> S7ParsePointInt {
         S7ParsePointInt {
             value: 0,
+            status: DsStatus::Invalid,
             isChanged: false,
             path: path,
             name: name,
@@ -169,21 +174,26 @@ impl ParsePoint<i16> for S7ParsePointInt {
             Ok(newVal) => {
                 if newVal != self.value {
                     self.value = newVal;
+                    self.status = DsStatus::Ok;
                     self.timestamp = timestamp;
                     self.isChanged = true;
                 }        
             },
             Err(e) => {
-                warn!("[S7ParsePoint<i16>.addRaw] convertion error: {:#?}", e);
+                self.status = DsStatus::Invalid;
+                warn!("[S7ParsePoint<i16>.addRaw] convertion error: {:?}", e);
             }
         }
     }
     ///
     fn convert(&self, bytes: &Vec<u8>, start: usize, _bit: usize) -> Result<i16, TryFromSliceError> {
+        // debug!("[S7ParsePoint<i16>.convert] start: {},  end: {:?}", start, start + 2);
+        // let raw: [u8; 2] = (bytes[start..(start + 2)]).try_into().unwrap();
+        // debug!("[S7ParsePoint<i16>.convert] raw: {:?}", raw);
         match bytes[start..(start + 2)].try_into() {
             Ok(v) => Ok(i16::from_be_bytes(v)),
             Err(e) => {
-                error!("ERROR in S7ParsePoint<i16>: {}", e);
+                debug!("[S7ParsePoint<i16>.convert] error: {}", e);
                 Err(e)
             }
         }
@@ -195,9 +205,11 @@ impl ParsePoint<i16> for S7ParsePointInt {
     }
 }
 ///
+/// 
 #[derive(Debug, Clone)]
 pub struct S7ParsePointReal {
-    value: f32,
+    pub value: f32,
+    pub status: DsStatus,
     isChanged: bool,
     pub path: String,
     pub name: String,
@@ -223,6 +235,7 @@ impl S7ParsePointReal {
     ) -> S7ParsePointReal {
         S7ParsePointReal {
             value: 0.0,
+            status: DsStatus::Invalid,
             isChanged: false,
             path: path,
             name: name,
@@ -246,21 +259,27 @@ impl ParsePoint<f32> for S7ParsePointReal {
             Ok(newVal) => {
                 if newVal != self.value {
                     self.value = newVal;
+                    self.status = DsStatus::Ok;
                     self.timestamp = timestamp;
                     self.isChanged = true;
                 }        
             },
             Err(e) => {
-                warn!("[S7ParsePoint<i16>.addRaw] convertion error: {:#?}", e);
+                self.status = DsStatus::Invalid;
+                warn!("[S7ParsePoint<f32>.addRaw] convertion error: {:?}", e);
             }
         }
     }
     ///
     fn convert(&self, bytes: &Vec<u8>, start: usize, _bit: usize) -> Result<f32, TryFromSliceError> {
+        // debug!("[S7ParsePoint<f32>.convert] start: {},  end: {:?}", start, start + 4);
+        // let raw: [u8; 4] = (bytes[start..(start + 4)]).try_into().unwrap();
+        // debug!("[S7ParsePoint<f32>.convert] raw: {:?}", raw);
         match bytes[start..(start + 4)].try_into() {
+            // Ok(v) => Ok(f32::from_le_bytes(v)),
             Ok(v) => Ok(f32::from_be_bytes(v)),
             Err(e) => {
-                error!("ERROR in S7ParsePoint<f32>: {}", e);
+                debug!("[S7ParsePoint<f32>.convert] error: {}", e);
                 Err(e)
             }
         }
