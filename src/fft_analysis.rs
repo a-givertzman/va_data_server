@@ -20,7 +20,7 @@ use crate::{
     udp_server::udp_server::{
         UdpServer,
         UDP_BUF_SIZE,
-    }
+    }, ds::ds_server::DsServer
 };
 
 // T, uc	QSIZE
@@ -41,6 +41,7 @@ pub struct FftAnalysis {
     cancel: bool,
     receiver: Arc<ConcurrentQueue<[u8; UDP_BUF_SIZE]>>,
     udpServer: Arc<Mutex<UdpServer>>,
+    dsServer: DsServer,
     pub delta: f64,
     pub f: f32,
     pub samplingPeriod: f64,
@@ -50,7 +51,7 @@ pub struct FftAnalysis {
     pub fftBuflen: usize,
     pub fftComplex: Vec<Complex<f64>>,
     pub xyLen: usize,
-    pub xy: Vec<[f64; 2]>, //CircularQueue<[f64; 2]>,
+    pub xy: Vec<[f64; 2]>,
     fft: Arc<dyn Fft<f64>>,
     pub fftXyLen: usize,
     pub fftXy: Vec<[f64; 2]>,
@@ -67,6 +68,7 @@ impl FftAnalysis {
         fftBuflen: usize,
         receiver: Arc<ConcurrentQueue<[u8; UDP_BUF_SIZE]>>,
         udpServer: Arc<Mutex<UdpServer>>,
+        dsServer: DsServer,
     ) -> Self {
         let samplingPeriod = 1.0 / (f as f64);
         let delta = samplingPeriod / (fftBuflen as f64);
@@ -86,6 +88,7 @@ impl FftAnalysis {
             cancel: false,
             receiver: receiver,
             udpServer: udpServer,
+            dsServer: dsServer,
             delta: delta,
             f,
             samplingPeriod,
@@ -149,8 +152,27 @@ impl FftAnalysis {
         debug!("{} starting...", logLoc);
         info!("{} enter", logLoc);
         let me = this.clone();
-        // let me1 = this.clone();
+        let me1 = this.clone();
         let receiver = this.clone().lock().unwrap().receiver.clone();
+
+        let queues = this.clone().lock().unwrap().dsServer.queues.clone();
+        let handleDsServer = thread::Builder::new().name("FftAnalysis(DsServer) tread".to_string()).spawn(move || {
+            debug!("{} started in {:?}", logLoc, thread::current().name().unwrap());
+            info!("{} started", logLoc);
+            // let receiver = receiver.lock().unwrap();
+            while !(me1.clone().lock().unwrap().cancel) {
+                // let mut buf = Some(Arc::new([0u8; UDP_BUF_SIZE]));
+                for queue in &queues {
+                    while !queue.is_empty() {
+                        let point = queue.pop().unwrap();
+                        debug!("{} point ({:?}): {:?} {:?}", logLoc, point.dataType, point.name, point.value);
+                    }
+                }
+            }
+            info!("{} exit", logLoc);
+            // this.lock().unwrap().cancel = false;
+        }).unwrap();
+
         let handle = thread::Builder::new().name("FftAnalysis tread".to_string()).spawn(move || {
             debug!("{} started in {:?}", logLoc, thread::current().name().unwrap());
             info!("{} started", logLoc);

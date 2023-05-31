@@ -8,6 +8,8 @@ mod ui_app;
 mod interval;
 mod udp_server;
 mod ds_point;
+mod ds;
+mod s7;
 
 use log::{
     // info,
@@ -28,6 +30,7 @@ use crate::{
     ui_app::UiApp,
     udp_server::udp_server::UdpServer, 
     fft_analysis::FftAnalysis,
+    ds::ds_server::DsServer,
 };
 
 ///
@@ -43,7 +46,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // const sampleRate: f32 = 2_048.0000;
     // const PI2f: f64 = (PI2 as f64) * sampleRate;
     // InputSignal::run(inputSignal.clone())?;
-    debug!("[main] InputSignal ready\n");
+    // debug!("[main] InputSignal ready\n");
 
 
     // debug!("[main] creating TcpServer...");
@@ -55,6 +58,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     // ));
     // debug!("[main] TcpServer created");
     // TcpServer::run(tcpSrv)?;
+
+
+
+    debug!("[main] creating DsServer...");
+    let mut dsServer = DsServer::new();
+    debug!("[main] DsServer created");
+    dsServer.run();
 
 
     let reconnectDelay = Duration::from_secs(3);
@@ -79,6 +89,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             320_000,
             udpSrv.clone().lock().unwrap().receiver.clone(),
             udpSrv.clone(),
+            dsServer
         )
     ));
     debug!("[main] FftAnalysis created");
