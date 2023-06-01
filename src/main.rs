@@ -68,8 +68,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 
     let reconnectDelay = Duration::from_secs(3);
-    let localAddr = "192.168.120.172:15180";
-    let remoteAddr = "192.168.120.173:15180";
+    let localAddr = "192.168.100.172:15180";
+    let remoteAddr = "192.168.100.173:15180";
     debug!("[main] creating UdpServer...");
     let udpSrv = Arc::new(Mutex::new(
         UdpServer::new(

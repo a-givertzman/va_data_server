@@ -2205,7 +2205,6 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
- "snap7",
  "snap7-sys",
 ]
 
@@ -2463,12 +2462,6 @@ dependencies = [
  "smithay-client-toolkit",
  "wayland-client",
 ]
-
-[[package]]
-name = "snap7"
-version = "0.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a5b3b329adc588306c492606d525ef64447dd5e8b5bf378e52ab9ddd180ae64f"
 
 [[package]]
 name = "snap7-sys"

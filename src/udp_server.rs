@@ -73,7 +73,7 @@ pub mod udp_server {
             let me = this.clone();
             let me1 = this.clone();
             let localAddr = this.lock().unwrap().localAddr.clone();
-            let _remoteAddr = this.lock().unwrap().remoteAddr.clone();
+            let remoteAddr = this.lock().unwrap().remoteAddr.clone();
             let reconnectDelay = this.lock().unwrap().reconnectDelay;
             let handle = thread::Builder::new().name("UdpServer tread".to_string()).spawn(move || {
                 debug!("{} started in {:?}", logLoc, thread::current().name().unwrap());
@@ -88,15 +88,15 @@ pub mod udp_server {
                             let mut udpBuf = [0; UDP_BUF_SIZE];
                             let handshake = Self::handshake();
                             info!("{} sending handshake({}): {:?}", logLoc, handshake.len(), handshake);
-                            // match socket.send_to(&handshake, remoteAddr.clone()) {
-                            //     Ok(_) => {
-                            //         info!("{} handshake done\n", logLoc);
-                            //     },
-                            //     Err(err) => {
-                            //         warn!("{} send error: {:#?}", logLoc, err);
-                            //     },
-                            // };
-                            // socket.set_read_timeout(Some(Duration::from_millis(3000))).unwrap();
+                            match socket.send_to(&handshake, remoteAddr.clone()) {
+                                Ok(_) => {
+                                    info!("{} handshake done\n", logLoc);
+                                },
+                                Err(err) => {
+                                    warn!("{} send error: {:#?}", logLoc, err);
+                                },
+                            };
+                            socket.set_read_timeout(Some(Duration::from_millis(3000))).unwrap();
                             let mut cancel = match this.try_lock() {
                                 Ok(m) => {
                                     m.cancel
