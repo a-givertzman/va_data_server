@@ -258,8 +258,13 @@ impl eframe::App for UiApp {
                     );
                     ui.separator();
                     ui.add_sized(
-                        [200.0, 16.0], 
-                        egui::Label::new(format!("Drive freq: {:.4} об/мин", analyzeFft.baseFreq)),
+                        [250.0, 16.0], 
+                        egui::Label::new(format!("Drive freq: {:.4} об/мин ({:.2} Гц)", analyzeFft.baseFreq, analyzeFft.baseFreq / 60.0)),
+                    );
+                    ui.separator();
+                    ui.add_sized(
+                        [250.0, 16.0], 
+                        egui::Label::new(format!("freq offset: {:.4} об/мин ({:.2} Гц)", analyzeFft.offsetFreq, analyzeFft.offsetFreq / 60.0)),
                     );
                     // ui.separator();
                     ui.separator();

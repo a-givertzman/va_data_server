@@ -3,7 +3,7 @@
 use concurrent_queue::ConcurrentQueue;
 use log::{
     info,
-    // trace,
+    trace,
     debug,
     // warn,
 };
@@ -60,6 +60,7 @@ pub struct FftAnalysis {
     pub envelopeXy: Vec<[f64; 2]>,
     pub limitationsXy: Vec<[f64; 2]>,
     pub baseFreq: f64,
+    pub offsetFreq: f64,
 }
 
 impl FftAnalysis {
@@ -106,35 +107,41 @@ impl FftAnalysis {
             fftAlarmXy: vec![[0.0, 0.0]; fftXyLen],
             fftXyDif: vec![[0.0, 0.0]; fftBuflen],
             envelopeXy: vec![[0.0, 0.0]; fftBuflen],
-            limitationsXy: Self::buildLimitations(fftXyLen, 0),
+            limitationsXy: Self::buildLimitations(fftXyLen, 0.0),
             baseFreq: 0.0,
+            offsetFreq: 0.0,
         }
     }
     ///
     /// 
-    fn buildLimitations(len: usize, offset: usize) -> Vec<[f64; 2]> {
+    fn buildLimitations(len: usize, offset: f64) -> Vec<[f64; 2]> {
         const logLoc: &str = "[FftAnalysis.buildLimitations]";
         let mut res = vec![]; //vec![[0.0, 0.0]; len];
         const low: f64 = 50.0;
-        let linitationsConf: BTreeMap<usize, f64> = BTreeMap::from([                
-            (0, low),
-            (100 - 10, 300.0),
-            (100 + 10, low),
-            (381 - 10, 300.0),
-            (381 + 10, low),
-            (3000 - 100, 300.0),
-            (3000 + 100, low),
-            (4000 - 100, 300.0),
-            (4000 + 100, low),
-            (len, low),
-        ]);
-        let mut prevAmplitude = 0.0;
+        // let linitationsConf: BTreeMap<f64, f64> = BTreeMap::from([                
+        let linitationsConf: Vec<(f64, f64)> = vec![                
+            (0.0, low),
+            (100.0 - 10.0, 300.0),
+            (100.0 + 10.0, low),
+            (381.0 - 10.0, 300.0),
+            (381.0 + 10.0, low),
+            (3000.0 - 100.0, 300.0),
+            (3000.0 + 100.0, low),
+            (4000.0 - 100.0, 300.0),
+            (4000.0 + 100.0, low),
+            (len as f64, low),
+        ];
+        let mut prevAmplitude = low;
         for (freq, amplitude) in linitationsConf {
-            res.push([freq as f64, prevAmplitude]);
-            res.push([freq as f64, amplitude]);
+            let mut freq = freq - offset;
+            if freq < 0.0 {
+                freq = 0.0;
+            }
+            res.push([freq, prevAmplitude]);
+            res.push([freq, amplitude]);
             prevAmplitude = amplitude;
         }
-        debug!("{} limitations: {:?}", logLoc, res);
+        trace!("{} limitations: {:?}", logLoc, res);
         // for i in 0..len {
         //     res[i] = [0.0, 0.0];
         // }
@@ -158,6 +165,7 @@ impl FftAnalysis {
         let receiver = this.clone().lock().unwrap().receiver.clone();
 
         let queues = this.clone().lock().unwrap().dsServer.queues.clone();
+        let fftXyLen = me1.clone().lock().unwrap().fftXyLen;
         let handleDsServer = thread::Builder::new().name("FftAnalysis(DsServer) tread".to_string()).spawn(move || {
             debug!("{} started in {:?}", logLoc, thread::current().name().unwrap());
             info!("{} started", logLoc);
@@ -171,6 +179,9 @@ impl FftAnalysis {
                                 if point.name == "Drive.Counter" {
                                     let value = point.valueReal();
                                     me1.clone().lock().unwrap().baseFreq = value as f64;
+                                    me1.clone().lock().unwrap().offsetFreq = (value as f64) - 3000.0;
+                                    let offset = (value as f64) - 3000.0 / 60.0;
+                                    me1.clone().lock().unwrap().limitationsXy = Self::buildLimitations(fftXyLen, offset)
                                 }
                             },
                             Err(_) => {},
