@@ -11,6 +11,7 @@ use concurrent_queue::ConcurrentQueue;
 use log::{
     info,
     debug,
+    trace,
     error,
 };
 
@@ -128,7 +129,7 @@ impl DsDb {
                 let t = Instant::now();
                 // let t = Utc::now();
                 if client.isConnected {
-                    debug!("{} reading DB: {:?}, offset: {:?}, size: {:?}", logPref, me.number, me.offset, me.size);
+                    trace!("{} reading DB: {:?}, offset: {:?}, size: {:?}", logPref, me.number, me.offset, me.size);
                     match client.read(me.number, me.offset, me.size) {
                         Ok(bytes) => {
                             // let bytes = client.read(899, 0, 34).unwrap();
@@ -148,8 +149,8 @@ impl DsDb {
                                                 point.h,
                                                 point.a,
                                             );
-                                            // sender.push(value)
-                                            debug!("{} point Bool: {:?}", logPref, dsPoint.value);
+                                            // debug!("{} point (Bool): {:?} {:?}", logPref, dsPoint.name, dsPoint.value);
+                                            sender.push(dsPoint).unwrap()
                                         }
                                     },
                                     ParsePointType::Int(mut point) => {
@@ -164,8 +165,8 @@ impl DsDb {
                                                 point.h,
                                                 point.a,
                                             );
-                                            // sender.push(value)
-                                            debug!("{} point Int: {:?}", logPref, dsPoint.value);
+                                            // debug!("{} point (Int): {:?} {:?}", logPref, dsPoint.name, dsPoint.value);
+                                            sender.push(dsPoint).unwrap()
                                         }
                                     },
                                     ParsePointType::Real(mut point) => {
@@ -193,7 +194,8 @@ impl DsDb {
                         },
                     }
                 } else {
-
+                    error!("{} wait for connection...", logPref);
+                    std::thread::sleep(std::time::Duration::from_millis((delay * 100) as u64));
                 }
                 let dt = Instant::now() - t;
                 // debug!("{} {:?} elapsed: {:?} ({:?})", logPref, me.name , dt, dt.as_millis());
@@ -202,7 +204,7 @@ impl DsDb {
                     std::thread::sleep(std::time::Duration::from_millis(wait as u64));
                 }
                 let dt = Instant::now() - t;
-                debug!("{} {:?} elapsed: {:?} ({:?})", logPref, me.name , dt, dt.as_millis());
+                trace!("{} {:?} elapsed: {:?} ({:?})", logPref, me.name , dt, dt.as_millis());
             }
             info!("{} exit", logPref);
         }).unwrap();

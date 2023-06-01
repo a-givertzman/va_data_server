@@ -8,6 +8,7 @@ use std::os::raw::{
     c_char,
     c_void,
 };
+use std::sync::{Mutex, Arc};
 use std::thread;
 use std::time::Duration;
 use log::{
@@ -20,6 +21,7 @@ use log::{
 pub struct S7Client {
     ip: CString,
     handle: S7Object,
+    cancel: bool,
     req_len: usize,
     neg_len: usize,
     pub isConnected: bool,
@@ -33,6 +35,7 @@ impl S7Client {
         Self {
             ip: CString::new(ip).unwrap(),
             handle: unsafe { Cli_Create() },
+            cancel: false,
             req_len: 0,
             neg_len: 0,
             isConnected: false,
@@ -47,7 +50,14 @@ impl S7Client {
         let mut req: c_int = 0;
         let mut neg: c_int = 0;
         let mut err = 0;
-        while !self.isConnected {
+        let me = Arc::new(Mutex::new(&self));
+        // let handle = thread::Builder::new().name("S7Client.connect.thread".to_string()).spawn(move || {
+        //     while me.clone().lock().unwrap().cancel {
+                
+        //     }
+        // }).unwrap();
+        let mut count = 3;
+        while !self.isConnected && count > 0{
             unsafe {
                 // #[warn(temporary_cstring_as_ptr)]
                 err = Cli_ConnectTo(self.handle, self.ip.as_ptr(), 0, 1);
@@ -63,6 +73,7 @@ impl S7Client {
                 error!("{} {:?} | connection error: {:?}", logPref, self.ip, err);
                 thread::sleep(self.reconnectDelay);
             }
+            count -= 1;
         }
     }
     pub fn read(&self, dbNum: u32, start: u32, size: u32) -> Result<Vec<u8>, String> {

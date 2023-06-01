@@ -12,7 +12,7 @@ use rustfft::{FftPlanner, Fft};
 use std::{
     sync::{Arc, Mutex}, 
     thread::{self, JoinHandle},
-    collections::BTreeMap, f64::consts::PI,
+    collections::BTreeMap, f64::consts::PI, time::Duration,
 };
 use crate::{
     circular_queue::CircularQueue, 
@@ -59,6 +59,7 @@ pub struct FftAnalysis {
     pub fftXyDif: Vec<[f64; 2]>,
     pub envelopeXy: Vec<[f64; 2]>,
     pub limitationsXy: Vec<[f64; 2]>,
+    pub baseFreq: f64,
 }
 
 impl FftAnalysis {
@@ -105,12 +106,13 @@ impl FftAnalysis {
             fftAlarmXy: vec![[0.0, 0.0]; fftXyLen],
             fftXyDif: vec![[0.0, 0.0]; fftBuflen],
             envelopeXy: vec![[0.0, 0.0]; fftBuflen],
-            limitationsXy: Self::buildLimitations(fftXyLen),
+            limitationsXy: Self::buildLimitations(fftXyLen, 0),
+            baseFreq: 0.0,
         }
     }
     ///
     /// 
-    fn buildLimitations(len: usize) -> Vec<[f64; 2]> {
+    fn buildLimitations(len: usize, offset: usize) -> Vec<[f64; 2]> {
         const logLoc: &str = "[FftAnalysis.buildLimitations]";
         let mut res = vec![]; //vec![[0.0, 0.0]; len];
         const low: f64 = 50.0;
@@ -164,10 +166,19 @@ impl FftAnalysis {
                 // let mut buf = Some(Arc::new([0u8; UDP_BUF_SIZE]));
                 for queue in &queues {
                     while !queue.is_empty() {
-                        let point = queue.pop().unwrap();
-                        debug!("{} point ({:?}): {:?} {:?}", logLoc, point.dataType, point.name, point.value);
+                        let _point = match queue.pop() {
+                            Ok(point) => {
+                                if point.name == "Drive.Counter" {
+                                    let value = point.valueReal();
+                                    me1.clone().lock().unwrap().baseFreq = value as f64;
+                                }
+                            },
+                            Err(_) => {},
+                        };
+                        // debug!("{} point ({:?}): {:?} {:?}", logLoc, point.dataType, point.name, point.value);
                     }
                 }
+                thread::sleep(Duration::from_millis(10));
             }
             info!("{} exit", logLoc);
             // this.lock().unwrap().cancel = false;
