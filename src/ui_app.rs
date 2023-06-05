@@ -123,7 +123,11 @@ impl eframe::App for UiApp {
                         // ui.label(format!(" i: {:?}", inputSignal.i));
                         ui.horizontal(|ui| {
                             ui.add_sized(
-                                [250.0, 16.0], 
+                                [50.0, 16.0], 
+                                egui::Label::new(format!("lost: {:?}", inputSignal.udpLost)),
+                            );
+                            ui.add_sized(
+                                [200.0, 16.0], 
                                 egui::Label::new(format!("Sampling:  F: {:?} kHz,  T: {:.2} us", inputSignal.f * 1.0e-3, inputSignal.samplingPeriod * 1.0e6)),
                             );
                             ui.separator();

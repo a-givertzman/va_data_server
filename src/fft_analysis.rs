@@ -12,14 +12,14 @@ use rustfft::{FftPlanner, Fft};
 use std::{
     sync::{Arc, Mutex}, 
     thread::{self, JoinHandle},
-    collections::BTreeMap, f64::consts::PI, time::Duration,
+    f64::consts::PI, time::Duration,
 };
 use crate::{
     circular_queue::CircularQueue, 
     dsp_filters::average_filter::AverageFilter, 
     udp_server::udp_server::{
         UdpServer,
-        UDP_BUF_SIZE,
+        UDP_BUF_SIZE, UDP_HEADER_SIZE,
     }, ds::ds_server::DsServer
 };
 
@@ -61,6 +61,8 @@ pub struct FftAnalysis {
     pub limitationsXy: Vec<[f64; 2]>,
     pub baseFreq: f64,
     pub offsetFreq: f64,
+    pub udpIndex: u8,
+    pub udpLost: f64,
 }
 
 impl FftAnalysis {
@@ -110,6 +112,8 @@ impl FftAnalysis {
             limitationsXy: Self::buildLimitations(fftXyLen, 0.0),
             baseFreq: 0.0,
             offsetFreq: 0.0,
+            udpIndex: 0,
+            udpLost: 0.0,
         }
     }
     ///
@@ -152,6 +156,8 @@ impl FftAnalysis {
     pub fn restart(&mut self) {
         const logLoc: &str = "[FftAnalysis.restart]";
         debug!("{} started...", logLoc);
+        self.udpIndex = 0;
+        self.udpLost = 0.0;
         self.udpServer.lock().unwrap().restart();
         debug!("{} done", logLoc);
     }
@@ -221,11 +227,19 @@ impl FftAnalysis {
     }
     ///
     fn enqueue(&mut self, buf: [u8; UDP_BUF_SIZE]) {
-        // const logLoc: &str = "[FftAnalysis.enqueue]";
+        const logLoc: &str = "[FftAnalysis.enqueue]";
         // debug!("{} started..", logLoc);
         let mut value;
         let mut bytes = [0_u8; 2];
-        let offset = 3;
+        let udpIndex = &buf[0..8];
+        // debug!("{} udpIndex: {:?}", logLoc, udpIndex);
+        let udpIndex = buf[3];
+        if (self.udpIndex + 1) != udpIndex {
+            self.udpLost = (udpIndex - self.udpIndex - 1) as f64;
+        }
+        self.udpIndex = udpIndex;
+        // debug!("{} udpIndex: {:?}", logLoc, udpIndex);
+        let offset = UDP_HEADER_SIZE;
         for i in 0..(UDP_BUF_SIZE - offset) / 2 {
             bytes[1] = buf[i * 2 + offset];
             bytes[0] = buf[i * 2 + offset + 1];

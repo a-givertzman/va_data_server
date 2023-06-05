@@ -20,7 +20,8 @@ pub mod udp_server {
     pub(crate) const SYN: u8 = 22;
     pub(crate) const EOT: u8 = 4;
     // pub(crate) const QSIZE: usize = 512;
-    pub(crate) const UDP_BUF_SIZE: usize = 1024 + 3;
+    pub(crate) const UDP_HEADER_SIZE: usize = 4;
+    pub(crate) const UDP_BUF_SIZE: usize = 1024 + UDP_HEADER_SIZE;
     pub(crate) const MAX_QUEUE_SIZE: usize = 1024;
     
     pub struct UdpServer {
@@ -174,8 +175,8 @@ pub mod udp_server {
             };
         }
         ///
-        fn handshake() -> [u8; 2] {
-            [SYN, EOT]
+        fn handshake() -> [u8; UDP_HEADER_SIZE] {
+            [SYN, EOT, 0, 0]
         }
     }
 }
