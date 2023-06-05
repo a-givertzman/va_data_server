@@ -235,7 +235,7 @@ impl FftAnalysis {
         // debug!("{} udpIndex: {:?}", logLoc, udpIndex);
         let udpIndex = buf[3];
         if (self.udpIndex + 1) != udpIndex {
-            self.udpLost = (udpIndex - self.udpIndex - 1) as f64;
+            self.udpLost += (udpIndex - self.udpIndex - 1) as f64;
         }
         self.udpIndex = udpIndex;
         // debug!("{} udpIndex: {:?}", logLoc, udpIndex);
