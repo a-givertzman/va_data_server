@@ -105,12 +105,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     // ));
     // AnalizeFft::run(analyzeFft.clone())?;
 
-    let uiApp = UiApp::new(
-        udpSrv,
-        fftAnalysis,
-    );
-
-  
     eframe::run_native(
         "Rpi-FFT-App", 
         eframe::NativeOptions {
@@ -119,8 +113,12 @@ fn main() -> Result<(), Box<dyn Error>> {
             initial_window_size: Some(egui::Vec2 { x: 1920.0, y: 840.0 }),
             ..Default::default()
         }, 
-        Box::new(|_| Box::new(
-            uiApp,
+        Box::new(|cc| Box::new(
+            UiApp::new(
+                cc,
+                udpSrv,
+                fftAnalysis,
+            ),
         ))    
     )?;    
     Ok(())

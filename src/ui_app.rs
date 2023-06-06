@@ -1,5 +1,6 @@
 #![allow(non_snake_case)]
 
+use eframe::CreationContext;
 use log::{
     // info,
     // trace,
@@ -20,7 +21,7 @@ use egui::{
         // PlotPoints, 
         Line
     }, 
-    Color32, Align2, 
+    Color32, Align2, FontFamily, TextStyle, FontId, 
     // mutex::Mutex,
 };
 use crate::{
@@ -56,12 +57,15 @@ pub struct UiApp {
 
 impl UiApp {
     pub fn new(
+        cc: &CreationContext,
         // inputSignal: Arc<Mutex<InputSignal>>, 
         // analyzeFft: Arc<Mutex<AnalizeFft>>,
         udpSrv: Arc<Mutex<UdpServer>>,
         fftAnalysis: Arc<Mutex<FftAnalysis>>,
         // renderDelay: Duration,
     ) -> Self {
+        Self::setup_custom_fonts(&cc.egui_ctx);
+        Self::configure_text_styles(&cc.egui_ctx);
         Self {
             udpSrv: udpSrv,
             fftAnalysis: fftAnalysis,
@@ -76,8 +80,56 @@ impl UiApp {
             events: vec![],
         }
     }
+    ///
+    fn setup_custom_fonts(ctx: &egui::Context) {
+        // Start with the default fonts (we will be adding to them rather than replacing them).
+        let mut fonts = egui::FontDefinitions::default();
+
+        // Install my own font (maybe supporting non-latin characters).
+        // .ttf and .otf files supported.
+        fonts.font_data.insert(
+            "Icons".to_owned(),
+            egui::FontData::from_static(include_bytes!(
+                "../assets/fonts/icons.ttf"
+            )),
+        );
+
+        // Put my font first (highest priority) for proportional text:
+        fonts
+            .families
+            .entry(egui::FontFamily::Proportional)
+            .or_default()
+            .insert(0, "Icons".to_owned());
+
+        // Put my font as last fallback for monospace:
+        fonts
+            .families
+            .entry(egui::FontFamily::Monospace)
+            .or_default()
+            .push("Icons".to_owned());
+
+        // Tell egui to use these fonts:
+        ctx.set_fonts(fonts);
+    }
+    ///
+    fn configure_text_styles(ctx: &egui::Context) {
+        use FontFamily::{Monospace, Proportional};
+        let mut style = (*ctx.style()).clone();
+        style.text_styles = [
+            (TextStyle::Heading, FontId::new(24.0, Proportional)),
+            // (heading2(), FontId::new(22.0, Proportional)),
+            // (heading3(), FontId::new(19.0, Proportional)),
+            (TextStyle::Body, FontId::new(16.0, Proportional)),
+            (TextStyle::Monospace, FontId::new(12.0, Monospace)),
+            (TextStyle::Button, FontId::new(16.0, Proportional)),
+            (TextStyle::Small, FontId::new(8.0, Proportional)),
+        ].into();
+        ctx.set_style(style);
+    }    
 }
 
+///
+///
 impl eframe::App for UiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let wSize = _frame.info().window_info.size;
@@ -123,15 +175,11 @@ impl eframe::App for UiApp {
                         // ui.label(format!(" i: {:?}", inputSignal.i));
                         ui.horizontal(|ui| {
                             ui.add_sized(
-                                [50.0, 16.0], 
-                                egui::Label::new(format!("lost: {:?}", inputSignal.udpLost)),
-                            );
-                            ui.add_sized(
                                 [200.0, 16.0], 
                                 egui::Label::new(format!("Sampling:  F: {:?} kHz,  T: {:.2} us", inputSignal.f * 1.0e-3, inputSignal.samplingPeriod * 1.0e6)),
                             );
                             ui.separator();
-                            if ui.add_sized([20., 20.], egui::Button::new("-")).clicked() {
+                            if ui.add_sized([30., 30.], egui::Button::new("\u{e800}")).clicked() {
                                 self.realInputLen -= self.realInputLen / 4;
                                 if self.realInputLen < 10 {
                                     self.realInputLen = 10;
@@ -141,7 +189,7 @@ impl eframe::App for UiApp {
                                 [100.0, 16.0], 
                                 egui::Label::new(format!(" length: {:.4} ns", (self.realInputLen as f64) * inputSignal.delta * 1.0e9)),
                             );
-                            if ui.add_sized([20., 20.], egui::Button::new("+")).clicked() {
+                            if ui.add_sized([30., 30.], egui::Button::new("\u{e801}")).clicked() {
                                 self.realInputLen += self.realInputLen / 4;
                                 if self.realInputLen > inputSignal.xy.len() {
                                     self.realInputLen = inputSignal.xy.len();
@@ -155,8 +203,17 @@ impl eframe::App for UiApp {
                             ui.checkbox(&mut self.realInputAutoscaleY, "Autoscale Y");
                             // ui.label(format!("xyPoints length: {}", inputSig.xyPoints.len()));
                             ui.separator();
-                            if ui.button("Restart").clicked() {
+                            if ui.button("\u{e802}").clicked() {
                                 inputSignal.restart();
+                            }
+                            ui.separator();
+                            ui.add_sized(
+                                [50.0, 16.0], 
+                                egui::Label::new(format!("lost: {:?}", inputSignal.udpLost)),
+                            );
+                            if ui.button("\u{e803}").clicked() {
+                                inputSignal.udpLost = 0.0;
+                                debug!("[UiApp.update] real input udpLost clicked");
                             }
                         });
                         ui.separator();
