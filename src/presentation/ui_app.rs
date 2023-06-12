@@ -83,7 +83,7 @@ impl UiApp {
         fonts.font_data.insert(
             "Icons".to_owned(),
             egui::FontData::from_static(include_bytes!(
-                "../assets/fonts/icons.ttf"
+                "../../assets/fonts/icons.ttf"
             )),
         );
 

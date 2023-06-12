@@ -3,7 +3,7 @@
 
 mod circular_queue;
 mod dsp_filters;
-mod ui_app;
+mod presentation;
 mod interval;
 mod networking;
 mod fft;
@@ -26,7 +26,7 @@ use std::{
     time::Duration, 
 };
 use crate::{
-    ui_app::UiApp,
+    presentation::ui_app::UiApp,
     networking::udp_server::UdpServer, 
     fft::fft_analysis::FftAnalysis,
     ds::ds_server::DsServer,
