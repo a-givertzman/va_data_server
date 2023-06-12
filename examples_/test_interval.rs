@@ -26,21 +26,21 @@ fn run<'a>() {
     let period = 1.0 / f;
     info!("f Hz : {:?}", f);
     info!("T sec: {:?}", period);
-    let mut iterations = 0;
+    // let mut iterations = 0;
     let mut il = Interval::new(
         period,
-        Box::new(move|| {
-            let mut r = vec![];
-            for i in 0..10 {
-                r.push(i);
-            }
-            info!("r: {:?}", r);
-            // info!("n: {:?}", iterations);
-            // iterations += 1;
-            // if iterations > 100 {
-            //     // interval.cancel();
-            // }
-        }), 
+        // Box::new(move|| {
+        //     let mut r = vec![];
+        //     for i in 0..10 {
+        //         r.push(i);
+        //     }
+        //     info!("r: {:?}", r);
+        //     // info!("n: {:?}", iterations);
+        //     // iterations += 1;
+        //     // if iterations > 100 {
+        //     //     // interval.cancel();
+        //     // }
+        // }), 
     );
-    il.run();
+    il.wait();
 }

@@ -7,8 +7,8 @@ mod circular_queue;
 mod input_signal;
 #[path = "../src/dsp_filters/mod.rs"]
 mod dsp_filters;
-#[path = "../src/analyze_fft.rs"]
-mod analyze_fft;
+#[path = "../src/fft/mod.rs"]
+mod fft;
 #[path = "../src/ui_app.rs"]
 mod ui_app;
 #[path = "../src/interval.rs"]
@@ -17,8 +17,10 @@ mod interval;
 mod tcp_server;
 #[path = "../src/udp_server.rs"]
 mod udp_server;
-#[path = "../src/ds_point.rs"]
-mod ds_point;
+// #[path = "../src/ds_point.rs"]
+// mod ds_point;
+#[path = "../src/ds/mod.rs"]
+mod ds;
 
 use log::{
     // info,
@@ -35,12 +37,13 @@ use std::{
     }, 
     time::Duration, 
 };
-use analyze_fft::AnalizeFft;
+// use analyze_fft::AnalizeFft;
 use input_signal::InputSignal;
 use ui_app::UiApp;
 use crate::{
     udp_server::UdpServer,
-    tcp_server::TcpServer,
+    tcp_server::TcpServer, 
+    fft_analyze::FftAnalysis, ds::ds_server::DsServer,
 };
 
 ///
@@ -110,8 +113,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         UdpServer::new(
             localAddr,
             remoteAddr,
-            48771.0,
-            48771,
             Some(reconnectDelay),
         )
     ));
@@ -119,21 +120,18 @@ fn main() -> Result<(), Box<dyn Error>> {
     UdpServer::run(udpSrv.clone());
 
 
-    let analyzeFft = Arc::new(Mutex::new(
-        AnalizeFft::new(
-            inputSignal.clone(),
-            sampleRate, 
-            N,
+    let fftAnalysis = Arc::new(Mutex::new(
+        FftAnalysis::new(
+            320_000.0,
+            320_000,
+            udpSrv.clone().lock().unwrap().receiver.clone(),
+            udpSrv.clone(), 
+            DsServer::new(),
         )
     ));
     // AnalizeFft::run(analyzeFft.clone())?;
 
-    let uiApp = UiApp::new(
-        inputSignal,
-        analyzeFft,
-        udpSrv,
-        Duration::from_secs_f64(10.0/60.0),
-    );
+    // let uiApp = ;
     env::set_var("RUST_BACKTRACE", "full");
     let native_options = eframe::NativeOptions {
         initial_window_size: Some(egui::Vec2 { x: 1024.0, y: 768.0 }),
@@ -142,8 +140,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     eframe::run_native(
         "Rpi-FFT-App", 
         native_options, 
-        Box::new(|_| Box::new(
-            uiApp,
+        Box::new(|cc| Box::new(
+            UiApp::new(
+                cc,
+                // inputSignal,
+                udpSrv,
+                fftAnalysis,
+                // Duration::from_secs_f64(10.0/60.0),
+            ),
         ))    
     )?;    
     Ok(())

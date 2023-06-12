@@ -3,11 +3,12 @@
 
 mod circular_queue;
 mod dsp_filters;
-mod fft_analysis;
-mod ui_app;
+mod presentation;
 mod interval;
-mod udp_server;
-mod ds_point;
+mod networking;
+mod fft;
+mod s7;
+mod ds;
 
 use log::{
     // info,
@@ -25,9 +26,10 @@ use std::{
     time::Duration, 
 };
 use crate::{
-    ui_app::UiApp,
-    udp_server::udp_server::UdpServer, 
-    fft_analysis::FftAnalysis,
+    presentation::ui_app::UiApp,
+    networking::udp_server::UdpServer, 
+    fft::fft_analysis::FftAnalysis,
+    ds::ds_server::DsServer,
 };
 
 ///
@@ -43,7 +45,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // const sampleRate: f32 = 2_048.0000;
     // const PI2f: f64 = (PI2 as f64) * sampleRate;
     // InputSignal::run(inputSignal.clone())?;
-    debug!("[main] InputSignal ready\n");
+    // debug!("[main] InputSignal ready\n");
 
 
     // debug!("[main] creating TcpServer...");
@@ -57,9 +59,16 @@ fn main() -> Result<(), Box<dyn Error>> {
     // TcpServer::run(tcpSrv)?;
 
 
+
+    debug!("[main] creating DsServer...");
+    let mut dsServer = DsServer::new();
+    debug!("[main] DsServer created");
+    dsServer.run();
+
+
     let reconnectDelay = Duration::from_secs(3);
-    let localAddr = "192.168.120.172:15180";
-    let remoteAddr = "192.168.120.173:15180";
+    let localAddr = "192.168.100.172:15180";
+    let remoteAddr = "192.168.100.173:15180";
     debug!("[main] creating UdpServer...");
     let udpSrv = Arc::new(Mutex::new(
         UdpServer::new(
@@ -79,6 +88,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             320_000,
             udpSrv.clone().lock().unwrap().receiver.clone(),
             udpSrv.clone(),
+            dsServer
         )
     ));
     debug!("[main] FftAnalysis created");
@@ -94,12 +104,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     // ));
     // AnalizeFft::run(analyzeFft.clone())?;
 
-    let uiApp = UiApp::new(
-        udpSrv,
-        fftAnalysis,
-    );
-
-  
     eframe::run_native(
         "Rpi-FFT-App", 
         eframe::NativeOptions {
@@ -108,8 +112,12 @@ fn main() -> Result<(), Box<dyn Error>> {
             initial_window_size: Some(egui::Vec2 { x: 1920.0, y: 840.0 }),
             ..Default::default()
         }, 
-        Box::new(|_| Box::new(
-            uiApp,
+        Box::new(|cc| Box::new(
+            UiApp::new(
+                cc,
+                udpSrv,
+                fftAnalysis,
+            ),
         ))    
     )?;    
     Ok(())

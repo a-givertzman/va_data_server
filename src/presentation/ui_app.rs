@@ -1,5 +1,6 @@
 #![allow(non_snake_case)]
 
+use eframe::CreationContext;
 use log::{
     // info,
     // trace,
@@ -20,19 +21,12 @@ use egui::{
         // PlotPoints, 
         Line
     }, 
-    Color32, Align2, 
+    Color32, Align2, FontFamily, TextStyle, FontId, 
     // mutex::Mutex,
 };
 use crate::{
-    // analyze_fft::{
-    //     AnalizeFft
-    // }, 
-    // input_signal::{
-    //     InputSignal,
-    //     PI,
-    // }, 
-    udp_server::udp_server::UdpServer,
-    fft_analysis::FftAnalysis,
+    networking::udp_server::UdpServer, 
+    fft::fft_analysis::FftAnalysis,
 };
 
 
@@ -56,12 +50,15 @@ pub struct UiApp {
 
 impl UiApp {
     pub fn new(
+        cc: &CreationContext,
         // inputSignal: Arc<Mutex<InputSignal>>, 
         // analyzeFft: Arc<Mutex<AnalizeFft>>,
         udpSrv: Arc<Mutex<UdpServer>>,
         fftAnalysis: Arc<Mutex<FftAnalysis>>,
         // renderDelay: Duration,
     ) -> Self {
+        Self::setup_custom_fonts(&cc.egui_ctx);
+        Self::configure_text_styles(&cc.egui_ctx);
         Self {
             udpSrv: udpSrv,
             fftAnalysis: fftAnalysis,
@@ -76,8 +73,56 @@ impl UiApp {
             events: vec![],
         }
     }
+    ///
+    fn setup_custom_fonts(ctx: &egui::Context) {
+        // Start with the default fonts (we will be adding to them rather than replacing them).
+        let mut fonts = egui::FontDefinitions::default();
+
+        // Install my own font (maybe supporting non-latin characters).
+        // .ttf and .otf files supported.
+        fonts.font_data.insert(
+            "Icons".to_owned(),
+            egui::FontData::from_static(include_bytes!(
+                "../../assets/fonts/icons.ttf"
+            )),
+        );
+
+        // Put my font first (highest priority) for proportional text:
+        fonts
+            .families
+            .entry(egui::FontFamily::Proportional)
+            .or_default()
+            .insert(0, "Icons".to_owned());
+
+        // Put my font as last fallback for monospace:
+        fonts
+            .families
+            .entry(egui::FontFamily::Monospace)
+            .or_default()
+            .push("Icons".to_owned());
+
+        // Tell egui to use these fonts:
+        ctx.set_fonts(fonts);
+    }
+    ///
+    fn configure_text_styles(ctx: &egui::Context) {
+        use FontFamily::{Monospace, Proportional};
+        let mut style = (*ctx.style()).clone();
+        style.text_styles = [
+            (TextStyle::Heading, FontId::new(24.0, Proportional)),
+            // (heading2(), FontId::new(22.0, Proportional)),
+            // (heading3(), FontId::new(19.0, Proportional)),
+            (TextStyle::Body, FontId::new(16.0, Proportional)),
+            (TextStyle::Monospace, FontId::new(12.0, Monospace)),
+            (TextStyle::Button, FontId::new(16.0, Proportional)),
+            (TextStyle::Small, FontId::new(8.0, Proportional)),
+        ].into();
+        ctx.set_style(style);
+    }    
 }
 
+///
+///
 impl eframe::App for UiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let wSize = _frame.info().window_info.size;
@@ -123,59 +168,75 @@ impl eframe::App for UiApp {
                         // ui.label(format!(" i: {:?}", inputSignal.i));
                         ui.horizontal(|ui| {
                             ui.add_sized(
-                                [250.0, 16.0], 
+                                [200.0, 16.0], 
                                 egui::Label::new(format!("Sampling:  F: {:?} kHz,  T: {:.2} us", inputSignal.f * 1.0e-3, inputSignal.samplingPeriod * 1.0e6)),
                             );
                             ui.separator();
+                            if ui.add_sized([30., 30.], egui::Button::new("\u{e800}")).clicked() {
+                                self.realInputLen -= self.realInputLen / 4;
+                                if self.realInputLen < 10 {
+                                    self.realInputLen = 10;
+                                }
+                            }
                             ui.add_sized(
-                                [200.0, 16.0], 
-                                // egui::Label::new(format!(" t: {:?}", inputSignal.t * 1.0e6)),
-                                egui::Label::new(format!(" length: {:?} us", (self.realInputLen as f64) * inputSignal.delta * 1.0e6)),
+                                [100.0, 16.0], 
+                                egui::Label::new(format!(" length: {:.4} ns", (self.realInputLen as f64) * inputSignal.delta * 1.0e9)),
                             );
+                            if ui.add_sized([30., 30.], egui::Button::new("\u{e801}")).clicked() {
+                                self.realInputLen += self.realInputLen / 4;
+                                if self.realInputLen > inputSignal.xy.len() {
+                                    self.realInputLen = inputSignal.xy.len();
+                                }
+                            }
                             ui.separator();
                             // ui.label(format!(" t: {:?}", inputSignal.t));
                             // ui.label(format!(" phi: {:?}", inputSignal.phi));
                             ui.label(format!("max length: {}", inputSignal.xy.len()));
+                            ui.separator();
                             ui.checkbox(&mut self.realInputAutoscaleY, "Autoscale Y");
                             // ui.label(format!("xyPoints length: {}", inputSig.xyPoints.len()));
-                            if ui.button("Restart").clicked() {
+                            ui.separator();
+                            if ui.button("\u{e802}").clicked() {
                                 inputSignal.restart();
+                            }
+                            ui.separator();
+                            ui.add_sized(
+                                [50.0, 16.0], 
+                                egui::Label::new(format!("lost: {:?}", inputSignal.udpLost)),
+                            );
+                            if ui.button("\u{e803}").clicked() {
+                                inputSignal.udpLost = 0.0;
+                                debug!("[UiApp.update] real input udpLost clicked");
                             }
                         });
                         ui.separator();
                         let mut min = format!("{}", self.realInputMinY);
                         let mut max = format!("{}", self.realInputMaxY);
                         let mut len = format!("{}", self.realInputLen);
-                        if ui.text_edit_singleline(&mut min).changed() {
-                            if !self.realInputAutoscaleY {
-                                self.realInputMinY = match min.parse() {Ok(value) => {value}, Err(_) => {self.realInputMinY}};
-                            }
-                        };
-                        if ui.text_edit_singleline(&mut max).changed() {
-                            if !self.realInputAutoscaleY {
-                                self.realInputMaxY = match max.parse() {Ok(value) => {value}, Err(_) => {self.realInputMaxY}};
-                            }
-                        };
-                        ui.end_row();
                         ui.horizontal(|ui| {
-                            let btnSub = ui.add_sized([20., 20.], egui::Button::new("-"));
-                            if ui.text_edit_singleline(&mut len).changed() {
-                                self.realInputLen = match len.parse() {Ok(value) => {value}, Err(_) => {self.realInputLen}};
-                            };
-                            let btnAdd = ui.add_sized([20., 20.], egui::Button::new("+"));
-                            if btnSub.clicked() {
-                                self.realInputLen -= self.realInputLen / 4;
-                                if self.realInputLen < 1 {
-                                    self.realInputLen = 1;
-                                }
-                            }
-                            if btnAdd.clicked() {
-                                self.realInputLen += self.realInputLen / 4;
-                                if self.realInputLen > inputSignal.xy.len() {
-                                    self.realInputLen = inputSignal.xy.len();
-                                }
-                            }
+                            ui.add_sized(
+                                [32.0, 16.0 * 2.0 + 6.0], 
+                                egui::Label::new(format!("↕")), //⇔⇕   ↔
+                            );
+                            ui.separator();
+                                    ui.vertical(|ui| {
+                                if ui.add_sized([64.0, 16.0], egui::TextEdit::singleline(&mut min)).changed() {
+                                    if !self.realInputAutoscaleY {
+                                        self.realInputMinY = match min.parse() {Ok(value) => {value}, Err(_) => {self.realInputMinY}};
+                                    }
+                                };
+                                if ui.add_sized([64.0, 16.0], egui::TextEdit::singleline(&mut max)).changed() {
+                                    if !self.realInputAutoscaleY {
+                                        self.realInputMaxY = match max.parse() {Ok(value) => {value}, Err(_) => {self.realInputMaxY}};
+                                    }
+                                };                          
+                            });        
                         });
+                        // ui.horizontal(|ui| {
+                        //     if ui.text_edit_singleline(&mut len).changed() {
+                        //         self.realInputLen = match len.parse() {Ok(value) => {value}, Err(_) => {self.realInputLen}};
+                        //     };
+                        // });
                         let mut plot = Plot::new("real input");
                         if !self.realInputAutoscaleY {
                             plot = plot.include_y(self.realInputMinY);
@@ -232,29 +293,78 @@ impl eframe::App for UiApp {
         //         )
         //     });
         // });
-        egui::Window::new("fft")
+        egui::Window::new("FFT")
             .anchor(Align2::LEFT_TOP, [0.0, 0.0])
             .default_size(vec2(0.6 * wSize.x, 1.0 * wSize.y - headHight))
             .show(ctx, |ui| {
                 let analyzeFft = self.fftAnalysis.lock().unwrap();
                 // ui.label(format!("new fft: '{}'", 0));
                 // let points = analyzeFft.fftXy.clone();
-                ui.label(format!("fftComplex length: {}", analyzeFft.fftComplex.len()));
-                ui.label(format!("fftPoints length: {}", analyzeFft.fftXy.len()));
-                if ui.button("just button").clicked() {
-                }
+                ui.horizontal(|ui| {
+                    ui.add_sized(
+                        [200.0, 16.0], 
+                        egui::Label::new(format!("fftComplex length: {:?}", analyzeFft.fftComplex.len())),
+                    );
+                    ui.separator();
+                    ui.add_sized(
+                        [200.0, 16.0], 
+                        egui::Label::new(format!("fftPoints length: {:?}", analyzeFft.fftXy.len())),
+                    );
+                    ui.separator();
+                    ui.add_sized(
+                        [250.0, 16.0], 
+                        egui::Label::new(format!("Drive freq: {:.4} об/мин ({:.2} Гц)", analyzeFft.baseFreq, analyzeFft.baseFreq / 60.0)),
+                    );
+                    ui.separator();
+                    ui.add_sized(
+                        [250.0, 16.0], 
+                        egui::Label::new(format!("freq offset: {:.4} об/мин ({:.2} Гц)", analyzeFft.offsetFreq, analyzeFft.offsetFreq / 60.0)),
+                    );
+                    // ui.separator();
+                    ui.separator();
+                    // if ui.add_sized([200.0, 16.0], egui::Button::new("just button")).clicked() {
+                    // }
+                });
                 let mut min = format!("{}", self.fftMinY);
                 let mut max = format!("{}", self.fftMaxY);
-                if ui.text_edit_singleline(&mut min).changed() {
-                    if !self.fftAutoscaleY {
-                        self.fftMinY = match min.parse() {Ok(value) => {value}, Err(_) => {self.fftMinY}};
-                    }    
-                };
-                if ui.text_edit_singleline(&mut max).changed() {
-                    if !self.fftAutoscaleY {
-                        self.fftMaxY = match max.parse() {Ok(value) => {value}, Err(_) => {self.fftMaxY}};
-                    }
-                };
+                ui.separator();
+                ui.horizontal(|ui| {
+                    ui.add_sized(
+                        [32.0, 16.0 * 2.0 + 6.0], 
+                        egui::Label::new(format!("↕")), //⇔⇕   ↔
+                    );
+                    ui.separator();
+                    ui.vertical(|ui| {
+                        if ui.add_sized([64.0, 16.0], egui::TextEdit::singleline(&mut min)).changed() {
+                            if !self.fftAutoscaleY {
+                                self.fftMinY = match min.parse() {Ok(value) => {value}, Err(_) => {self.fftMinY}};
+                            }    
+                        };                    
+                        if ui.add_sized([64.0, 16.0], egui::TextEdit::singleline(&mut max)).changed() {
+                            if !self.fftAutoscaleY {
+                                self.fftMaxY = match max.parse() {Ok(value) => {value}, Err(_) => {self.fftMaxY}};
+                            }
+                        };                          
+                    });
+                    // ui.separator();
+                    // ui.add_sized(
+                    //     [32.0, 16.0 * 2.0 + 6.0], 
+                    //     egui::Label::new(format!("↔")), //⇔⇕   ↔
+                    // );
+                    // ui.separator();
+                    // ui.vertical(|ui| {
+                    //     if ui.add_sized([64.0, 16.0], egui::TextEdit::singleline(&mut min)).changed() {
+                    //         if !self.fftAutoscaleY {
+                    //             self.fftMinY = match min.parse() {Ok(value) => {value}, Err(_) => {self.fftMinY}};
+                    //         }    
+                    //     };                    
+                    //     if ui.add_sized([64.0, 16.0], egui::TextEdit::singleline(&mut max)).changed() {
+                    //         if !self.fftAutoscaleY {
+                    //             self.fftMaxY = match max.parse() {Ok(value) => {value}, Err(_) => {self.fftMaxY}};
+                    //         }
+                    //     };                          
+                    // });
+                });
                 let mut plot = Plot::new("fft");
                 if !self.fftAutoscaleY {
                     plot = plot.include_y(self.fftMinY);

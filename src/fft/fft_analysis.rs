@@ -3,7 +3,7 @@
 use concurrent_queue::ConcurrentQueue;
 use log::{
     info,
-    // trace,
+    trace,
     debug,
     // warn,
 };
@@ -12,15 +12,16 @@ use rustfft::{FftPlanner, Fft};
 use std::{
     sync::{Arc, Mutex}, 
     thread::{self, JoinHandle},
-    collections::BTreeMap, f64::consts::PI,
+    f64::consts::PI, time::Duration,
 };
 use crate::{
+    ds::ds_server::DsServer,
     circular_queue::CircularQueue, 
     dsp_filters::average_filter::AverageFilter, 
-    udp_server::udp_server::{
+    networking::udp_server::{
         UdpServer,
-        UDP_BUF_SIZE,
-    }
+        UDP_BUF_SIZE, UDP_HEADER_SIZE,
+    }, 
 };
 
 // T, uc	QSIZE
@@ -41,6 +42,7 @@ pub struct FftAnalysis {
     cancel: bool,
     receiver: Arc<ConcurrentQueue<[u8; UDP_BUF_SIZE]>>,
     udpServer: Arc<Mutex<UdpServer>>,
+    dsServer: DsServer,
     pub delta: f64,
     pub f: f32,
     pub samplingPeriod: f64,
@@ -50,7 +52,7 @@ pub struct FftAnalysis {
     pub fftBuflen: usize,
     pub fftComplex: Vec<Complex<f64>>,
     pub xyLen: usize,
-    pub xy: Vec<[f64; 2]>, //CircularQueue<[f64; 2]>,
+    pub xy: Vec<[f64; 2]>,
     fft: Arc<dyn Fft<f64>>,
     pub fftXyLen: usize,
     pub fftXy: Vec<[f64; 2]>,
@@ -58,6 +60,10 @@ pub struct FftAnalysis {
     pub fftXyDif: Vec<[f64; 2]>,
     pub envelopeXy: Vec<[f64; 2]>,
     pub limitationsXy: Vec<[f64; 2]>,
+    pub baseFreq: f64,
+    pub offsetFreq: f64,
+    pub udpIndex: u8,
+    pub udpLost: f64,
 }
 
 impl FftAnalysis {
@@ -67,6 +73,7 @@ impl FftAnalysis {
         fftBuflen: usize,
         receiver: Arc<ConcurrentQueue<[u8; UDP_BUF_SIZE]>>,
         udpServer: Arc<Mutex<UdpServer>>,
+        dsServer: DsServer,
     ) -> Self {
         let samplingPeriod = 1.0 / (f as f64);
         let delta = samplingPeriod / (fftBuflen as f64);
@@ -86,6 +93,7 @@ impl FftAnalysis {
             cancel: false,
             receiver: receiver,
             udpServer: udpServer,
+            dsServer: dsServer,
             delta: delta,
             f,
             samplingPeriod,
@@ -102,34 +110,43 @@ impl FftAnalysis {
             fftAlarmXy: vec![[0.0, 0.0]; fftXyLen],
             fftXyDif: vec![[0.0, 0.0]; fftBuflen],
             envelopeXy: vec![[0.0, 0.0]; fftBuflen],
-            limitationsXy: Self::buildLimitations(fftXyLen),
+            limitationsXy: Self::buildLimitations(fftXyLen, 0.0),
+            baseFreq: 0.0,
+            offsetFreq: 0.0,
+            udpIndex: 0,
+            udpLost: 0.0,
         }
     }
     ///
     /// 
-    fn buildLimitations(len: usize) -> Vec<[f64; 2]> {
+    fn buildLimitations(len: usize, offset: f64) -> Vec<[f64; 2]> {
         const logLoc: &str = "[FftAnalysis.buildLimitations]";
         let mut res = vec![]; //vec![[0.0, 0.0]; len];
         const low: f64 = 50.0;
-        let linitationsConf: BTreeMap<usize, f64> = BTreeMap::from([                
-            (0, low),
-            (100 - 10, 300.0),
-            (100 + 10, low),
-            (381 - 10, 300.0),
-            (381 + 10, low),
-            (3000 - 100, 300.0),
-            (3000 + 100, low),
-            (4000 - 100, 300.0),
-            (4000 + 100, low),
-            (len, low),
-        ]);
-        let mut prevAmplitude = 0.0;
+        // let linitationsConf: BTreeMap<f64, f64> = BTreeMap::from([                
+        let linitationsConf: Vec<(f64, f64)> = vec![                
+            (0.0, low),
+            (100.0 - 10.0, 300.0),
+            (100.0 + 10.0, low),
+            (381.0 - 10.0, 300.0),
+            (381.0 + 10.0, low),
+            (3000.0 - 100.0, 300.0),
+            (3000.0 + 100.0, low),
+            (4000.0 - 100.0, 300.0),
+            (4000.0 + 100.0, low),
+            (len as f64, low),
+        ];
+        let mut prevAmplitude = low;
         for (freq, amplitude) in linitationsConf {
-            res.push([freq as f64, prevAmplitude]);
-            res.push([freq as f64, amplitude]);
+            let mut freq = freq - offset;
+            if freq < 0.0 {
+                freq = 0.0;
+            }
+            res.push([freq, prevAmplitude]);
+            res.push([freq, amplitude]);
             prevAmplitude = amplitude;
         }
-        debug!("{} limitations: {:?}", logLoc, res);
+        trace!("{} limitations: {:?}", logLoc, res);
         // for i in 0..len {
         //     res[i] = [0.0, 0.0];
         // }
@@ -140,6 +157,8 @@ impl FftAnalysis {
     pub fn restart(&mut self) {
         const logLoc: &str = "[FftAnalysis.restart]";
         debug!("{} started...", logLoc);
+        self.udpIndex = 0;
+        self.udpLost = 0.0;
         self.udpServer.lock().unwrap().restart();
         debug!("{} done", logLoc);
     }
@@ -149,8 +168,40 @@ impl FftAnalysis {
         debug!("{} starting...", logLoc);
         info!("{} enter", logLoc);
         let me = this.clone();
-        // let me1 = this.clone();
+        let me1 = this.clone();
         let receiver = this.clone().lock().unwrap().receiver.clone();
+
+        let queues = this.clone().lock().unwrap().dsServer.queues.clone();
+        let fftXyLen = me1.clone().lock().unwrap().fftXyLen;
+        let handleDsServer = thread::Builder::new().name("FftAnalysis(DsServer) tread".to_string()).spawn(move || {
+            debug!("{} started in {:?}", logLoc, thread::current().name().unwrap());
+            info!("{} started", logLoc);
+            // let receiver = receiver.lock().unwrap();
+            while !(me1.clone().lock().unwrap().cancel) {
+                // let mut buf = Some(Arc::new([0u8; UDP_BUF_SIZE]));
+                for queue in &queues {
+                    while !queue.is_empty() {
+                        let _point = match queue.pop() {
+                            Ok(point) => {
+                                if point.name == "Drive.Counter" {
+                                    let value = point.valueReal();
+                                    me1.clone().lock().unwrap().baseFreq = value as f64;
+                                    me1.clone().lock().unwrap().offsetFreq = (value as f64) - 3000.0;
+                                    let offset = (value as f64) - 3000.0 / 60.0;
+                                    me1.clone().lock().unwrap().limitationsXy = Self::buildLimitations(fftXyLen, offset)
+                                }
+                            },
+                            Err(_) => {},
+                        };
+                        // debug!("{} point ({:?}): {:?} {:?}", logLoc, point.dataType, point.name, point.value);
+                    }
+                }
+                thread::sleep(Duration::from_millis(10));
+            }
+            info!("{} exit", logLoc);
+            // this.lock().unwrap().cancel = false;
+        }).unwrap();
+
         let handle = thread::Builder::new().name("FftAnalysis tread".to_string()).spawn(move || {
             debug!("{} started in {:?}", logLoc, thread::current().name().unwrap());
             info!("{} started", logLoc);
@@ -177,11 +228,20 @@ impl FftAnalysis {
     }
     ///
     fn enqueue(&mut self, buf: [u8; UDP_BUF_SIZE]) {
-        // const logLoc: &str = "[FftAnalysis.enqueue]";
+        const logLoc: &str = "[FftAnalysis.enqueue]";
         // debug!("{} started..", logLoc);
         let mut value;
         let mut bytes = [0_u8; 2];
-        let offset = 3;
+        let udpIndex = &buf[0..8];
+        // debug!("{} udpIndex: {:?}", logLoc, udpIndex);
+        let udpIndex = buf[3];
+        if (self.udpIndex + 1) != udpIndex {
+            self.udpLost += (udpIndex - self.udpIndex - 1) as f64;
+            debug!("{} self.udpLost: {:?}", logLoc, self.udpLost);
+        }
+        self.udpIndex = udpIndex;
+        // debug!("{} udpIndex: {:?}", logLoc, udpIndex);
+        let offset = UDP_HEADER_SIZE;
         for i in 0..(UDP_BUF_SIZE - offset) / 2 {
             bytes[1] = buf[i * 2 + offset];
             bytes[0] = buf[i * 2 + offset + 1];

@@ -37,7 +37,7 @@ use crate::{
         // PI2, 
         InputSignal,
     },
-    ds_point::DsPoint,
+    ds::ds_point::DsPoint,
 };
 
 
@@ -134,10 +134,13 @@ impl TcpServer {
     // }
     ///
     /// 
-    fn buildPoint(&self, name: &str, value: &f64, timestamp: &SystemTime) -> DsPoint<f64> {
+    fn buildPoint(&self, name: &str, value: &f64, timestamp: &SystemTime) -> DsPoint {
         DsPoint {
-            class: String::from("commonCmd"),
-            datatype: String::from("real"),
+            dataType: todo!(),
+            history: todo!(),
+            alarm: todo!(),
+            // class: String::from("commonCmd"),
+            // datatype: String::from("real"),
             name: format!("/line1/ied12/db902_panel_controls/{}", name.to_owned()),
             value: *value,
             status: 0,

@@ -1,0 +1,41 @@
+{
+    "line1": {
+        "name": "Line 1",
+        "ieds": {
+            "exhibitionSiprotec": {
+                "name": "Siprotec",
+                "description": "S7-IED-EXHIBIT",
+                "ip": "192.168.100.141",
+                "rack": 0,
+                "slot": 1,
+                "dbs": {
+                    "db69": {
+                        "name": "DB 69",
+                        "description": "db69",
+                        "number": 69,
+                        "offset": 0,
+                        "size": 8,
+                        "delay": 10,
+                        "points": {
+                            "Drive.Speed": {
+                                "dataType": "Real",
+                                "comment": "Drive.Speed",
+                                "offset": 0
+                            },
+                            "Drive.Counter": {
+                                "dataType": "Real",
+                                "comment": "Drive.Counter",
+                                "offset": 4
+                            },
+                            "Drive.err": {
+                                "dataType": "Reals",
+                                "comment": "Drive.Counter",
+                                "offset": 4
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
