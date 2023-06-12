@@ -3,13 +3,12 @@
 
 mod circular_queue;
 mod dsp_filters;
-mod fft_analysis;
 mod ui_app;
 mod interval;
-mod udp_server;
-mod ds_point;
-mod ds;
+mod networking;
+mod fft;
 mod s7;
+mod ds;
 
 use log::{
     // info,
@@ -28,8 +27,8 @@ use std::{
 };
 use crate::{
     ui_app::UiApp,
-    udp_server::udp_server::UdpServer, 
-    fft_analysis::FftAnalysis,
+    networking::udp_server::UdpServer, 
+    fft::fft_analysis::FftAnalysis,
     ds::ds_server::DsServer,
 };
 

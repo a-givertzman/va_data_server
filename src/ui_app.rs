@@ -25,15 +25,8 @@ use egui::{
     // mutex::Mutex,
 };
 use crate::{
-    // analyze_fft::{
-    //     AnalizeFft
-    // }, 
-    // input_signal::{
-    //     InputSignal,
-    //     PI,
-    // }, 
-    udp_server::udp_server::UdpServer,
-    fft_analysis::FftAnalysis,
+    networking::udp_server::UdpServer, 
+    fft::fft_analysis::FftAnalysis,
 };
 
 

@@ -15,12 +15,13 @@ use std::{
     f64::consts::PI, time::Duration,
 };
 use crate::{
+    ds::ds_server::DsServer,
     circular_queue::CircularQueue, 
     dsp_filters::average_filter::AverageFilter, 
-    udp_server::udp_server::{
+    networking::udp_server::{
         UdpServer,
         UDP_BUF_SIZE, UDP_HEADER_SIZE,
-    }, ds::ds_server::DsServer
+    }, 
 };
 
 // T, uc	QSIZE
@@ -236,6 +237,7 @@ impl FftAnalysis {
         let udpIndex = buf[3];
         if (self.udpIndex + 1) != udpIndex {
             self.udpLost += (udpIndex - self.udpIndex - 1) as f64;
+            debug!("{} self.udpLost: {:?}", logLoc, self.udpLost);
         }
         self.udpIndex = udpIndex;
         // debug!("{} udpIndex: {:?}", logLoc, udpIndex);
