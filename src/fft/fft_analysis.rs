@@ -52,7 +52,7 @@ pub struct FftAnalysis {
     pub fftBuflen: usize,
     pub fftComplex: Vec<Complex<f64>>,
     pub xyLen: usize,
-    pub xy: Vec<[f64; 2]>,
+    pub xy: PlotData,
     fft: Arc<dyn Fft<f64>>,
     pub fftXyLen: usize,
     pub fftXy: Vec<[f64; 2]>,
@@ -103,7 +103,7 @@ impl FftAnalysis {
             fftBuflen,
             fftComplex: vec![Complex{re: 0.0, im: 0.0}; fftBuflen],
             xyLen: xyLen,
-            xy: vec![[0.0, 0.0]; xyLen], //CircularQueue::with_capacity_fill(QSIZE * 10, &mut vec![[0.0, 0.0]; QSIZE * 10]),
+            xy: PlotData::new(xyLen),
             fft: planner.plan_fft_forward(fftBuflen),
             fftXyLen: fftXyLen,
             fftXy: vec![[0.0, 0.0]; fftXyLen],
@@ -257,10 +257,11 @@ impl FftAnalysis {
                 self.fftProcess();
                 self.complex.clear();
             }
-            self.xy.push([self.t * 1.0e6, value]);
-            if self.xy.len() > self.xyLen {
-                self.xy.remove(0);
-            }
+            self.xy.add([self.t * 1.0e6, value]);
+            // self.xy.push([self.t * 1.0e6, value]);
+            // if self.xy.len() > self.xyLen {
+            //     self.xy.remove(0);
+            // }
             self.t += self.delta;
         }
         // debug!("{} done/n", logLoc);
@@ -369,5 +370,39 @@ struct Range {
 impl Range {
     fn contains(&self, value: f64) -> bool {
         self.min  <= value && value <= self.max
+    }
+}
+
+pub struct PlotData {
+    length: usize,
+    xy: Vec<[f64; 2]>,
+}
+
+impl PlotData {
+    ///
+    pub fn new(length: usize) -> Self {
+        Self {
+            length: length, 
+            xy: vec![[0.0, 0.0]; length],
+        }
+    }
+    ///
+    pub fn add(&mut self, xy: [f64; 2]) {
+        self.xy.push(xy);
+        while self.xy.len() > self.length {
+            self.xy.remove(0);
+        }
+    }
+    ///
+    pub fn xy(&self) -> Vec<[f64; 2]> {
+        self.xy.clone()
+    }
+    /// 
+    pub fn len(&self) -> usize {
+        self.xy.len()
+    }
+    ///
+    pub fn setLen(&mut self, length: usize) {
+        self.length = length;
     }
 }

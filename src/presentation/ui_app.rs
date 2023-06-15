@@ -172,21 +172,23 @@ impl eframe::App for UiApp {
                                 egui::Label::new(format!("Sampling:  F: {:?} kHz,  T: {:.2} us", inputSignal.f * 1.0e-3, inputSignal.samplingPeriod * 1.0e6)),
                             );
                             ui.separator();
-                            if ui.add_sized([30., 30.], egui::Button::new("\u{e800}")).clicked() {
-                                self.realInputLen -= self.realInputLen / 4;
-                                if self.realInputLen < 10 {
-                                    self.realInputLen = 10;
+                            if ui.add_sized([30., 30.], egui::Button::new("\u{e801}")).clicked() {
+                                self.realInputLen += self.realInputLen / 4;
+                                if self.realInputLen > inputSignal.xyLen * 4 {
+                                    self.realInputLen = inputSignal.xyLen * 4;
                                 }
+                                inputSignal.xy.setLen(self.realInputLen);
                             }
                             ui.add_sized(
                                 [100.0, 16.0], 
                                 egui::Label::new(format!(" length: {:.4} ns", (self.realInputLen as f64) * inputSignal.delta * 1.0e9)),
                             );
-                            if ui.add_sized([30., 30.], egui::Button::new("\u{e801}")).clicked() {
-                                self.realInputLen += self.realInputLen / 4;
-                                if self.realInputLen > inputSignal.xy.len() {
-                                    self.realInputLen = inputSignal.xy.len();
+                            if ui.add_sized([30., 30.], egui::Button::new("\u{e800}")).clicked() {
+                                self.realInputLen -= self.realInputLen / 4;
+                                if self.realInputLen < 10 {
+                                    self.realInputLen = 10;
                                 }
+                                inputSignal.xy.setLen(self.realInputLen);
                             }
                             ui.separator();
                             // ui.label(format!(" t: {:?}", inputSignal.t));
@@ -219,17 +221,17 @@ impl eframe::App for UiApp {
                                 egui::Label::new(format!("↕")), //⇔⇕   ↔
                             );
                             ui.separator();
-                                    ui.vertical(|ui| {
-                                if ui.add_sized([64.0, 16.0], egui::TextEdit::singleline(&mut min)).changed() {
-                                    if !self.realInputAutoscaleY {
-                                        self.realInputMinY = match min.parse() {Ok(value) => {value}, Err(_) => {self.realInputMinY}};
-                                    }
-                                };
+                            ui.vertical(|ui| {
                                 if ui.add_sized([64.0, 16.0], egui::TextEdit::singleline(&mut max)).changed() {
                                     if !self.realInputAutoscaleY {
                                         self.realInputMaxY = match max.parse() {Ok(value) => {value}, Err(_) => {self.realInputMaxY}};
                                     }
                                 };                          
+                                if ui.add_sized([64.0, 16.0], egui::TextEdit::singleline(&mut min)).changed() {
+                                    if !self.realInputAutoscaleY {
+                                        self.realInputMinY = match min.parse() {Ok(value) => {value}, Err(_) => {self.realInputMinY}};
+                                    }
+                                };
                             });        
                         });
                         // ui.horizontal(|ui| {
@@ -258,7 +260,8 @@ impl eframe::App for UiApp {
                         plot.show(ui, |plotUi| {
                             plotUi.points(
                                 Points::new(
-                                    ((inputSignal.xy)[0..self.realInputLen]).to_vec()
+                                    inputSignal.xy.xy()
+                                    // ((inputSignal.xy.xy())[0..self.realInputLen]).to_vec()
                                 )
                                 .color(Color32::LIGHT_GREEN)
                                 // .radius(2.0)
@@ -266,7 +269,8 @@ impl eframe::App for UiApp {
                             );
                             plotUi.line(
                                 Line::new(
-                                    ((inputSignal.xy)[0..self.realInputLen]).to_vec()
+                                    inputSignal.xy.xy()
+                                    // ((inputSignal.xy.xy())[0..self.realInputLen]).to_vec()
                                 ).color(Color32::GRAY),
                             );                        
                         });
@@ -335,16 +339,16 @@ impl eframe::App for UiApp {
                     );
                     ui.separator();
                     ui.vertical(|ui| {
-                        if ui.add_sized([64.0, 16.0], egui::TextEdit::singleline(&mut min)).changed() {
-                            if !self.fftAutoscaleY {
-                                self.fftMinY = match min.parse() {Ok(value) => {value}, Err(_) => {self.fftMinY}};
-                            }    
-                        };                    
                         if ui.add_sized([64.0, 16.0], egui::TextEdit::singleline(&mut max)).changed() {
                             if !self.fftAutoscaleY {
                                 self.fftMaxY = match max.parse() {Ok(value) => {value}, Err(_) => {self.fftMaxY}};
                             }
                         };                          
+                        if ui.add_sized([64.0, 16.0], egui::TextEdit::singleline(&mut min)).changed() {
+                            if !self.fftAutoscaleY {
+                                self.fftMinY = match min.parse() {Ok(value) => {value}, Err(_) => {self.fftMinY}};
+                            }    
+                        };                    
                     });
                     // ui.separator();
                     // ui.add_sized(
