@@ -377,7 +377,7 @@ impl eframe::App for UiApp {
                 plot.show(ui, |plotUi| {
                     plotUi.line(
                         Line::new(
-                            analyzeFft.fftXy.clone(),
+                            analyzeFft.fftXy.xy(),
                         ).color(Color32::LIGHT_GREEN),
                     );
                     plotUi.line(

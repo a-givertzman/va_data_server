@@ -55,7 +55,7 @@ pub struct FftAnalysis {
     pub xy: PlotData,
     fft: Arc<dyn Fft<f64>>,
     pub fftXyLen: usize,
-    pub fftXy: Vec<[f64; 2]>,
+    pub fftXy: PlotData,
     pub fftAlarmXy: Vec<[f64; 2]>,
     pub fftXyDif: Vec<[f64; 2]>,
     pub envelopeXy: Vec<[f64; 2]>,
@@ -106,7 +106,7 @@ impl FftAnalysis {
             xy: PlotData::new(xyLen),
             fft: planner.plan_fft_forward(fftBuflen),
             fftXyLen: fftXyLen,
-            fftXy: vec![[0.0, 0.0]; fftXyLen],
+            fftXy: PlotData::new(fftXyLen),
             fftAlarmXy: vec![[0.0, 0.0]; fftXyLen],
             fftXyDif: vec![[0.0, 0.0]; fftBuflen],
             envelopeXy: vec![[0.0, 0.0]; fftBuflen],
@@ -323,8 +323,8 @@ impl FftAnalysis {
         let mut average: f64;
         self.envelopeXy.clear();
         for i in 0..len {
-            x = self.fftXy[i][0];
-            y = self.fftXy[i][1];
+            x = self.fftXy.get(i)[0];
+            y = self.fftXy.get(i)[1];
             filterBuf.push(y);
             average = filterBuf.buffer().iter().sum::<f64>() / (filterLen as f64);
             average = y  + 10.0 * average;
@@ -342,17 +342,17 @@ impl FftAnalysis {
         let mut yDif: f64;
         let mut y: f64;
         let mut i: usize = 0;
-        let mut yPrev: f64 = self.fftXy[i][1];
+        let mut yPrev: f64 = self.fftXy.get(i)[1];
         self.fftXyDif.clear();
         self.fftXyDif.push([0.0, 0.0]);
         for j in 1..len {
             i = j * 2 - 1;
-            y = self.fftXy[i][1];
+            y = self.fftXy.get(i)[1];
             // yDif = (y - yPrev).abs();
             filter.add((y - yPrev).abs());
             yDif = filter.value() * 100.0 + 1000000.0;
             yPrev = y;
-            self.fftXyDif.push([self.fftXy[i][0] - (filterLen / 2) as f64, yDif]);
+            self.fftXyDif.push([self.fftXy.get(i)[0] - (filterLen / 2) as f64, yDif]);
         }
         // for j in 0..(filterLen / 2) {
         //     i = len - (filterLen / 2) + j;
@@ -387,11 +387,22 @@ impl PlotData {
         }
     }
     ///
+    pub fn push(&mut self, xy: [f64; 2]) {
+        self.add(xy)
+    }
+    ///
     pub fn add(&mut self, xy: [f64; 2]) {
         self.xy.push(xy);
         while self.xy.len() > self.length {
             self.xy.remove(0);
         }
+    }
+    ///
+    pub fn update(&mut self, index: usize, xy: [f64; 2]) {
+        self.xy[index] = xy;
+    }
+    pub fn get(&self, index: usize) -> [f64; 2] {
+        self.xy[index]
     }
     ///
     pub fn xy(&self) -> Vec<[f64; 2]> {
@@ -404,5 +415,9 @@ impl PlotData {
     ///
     pub fn setLen(&mut self, length: usize) {
         self.length = length;
+    }
+    ///
+    pub fn clear(&mut self) {
+        self.xy.clear();
     }
 }
