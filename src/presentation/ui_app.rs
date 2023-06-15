@@ -402,7 +402,7 @@ impl eframe::App for UiApp {
                     if false {
                         plotUi.points(
                             Points::new(
-                                analyzeFft.fftXyDif.clone()
+                                analyzeFft.fftXyDif.xy()
                             ).color(Color32::DARK_RED),
                         );
                     }
