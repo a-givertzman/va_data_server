@@ -382,7 +382,7 @@ impl eframe::App for UiApp {
                     );
                     plotUi.line(
                         Line::new(
-                            analyzeFft.limitationsXy.clone(),
+                            analyzeFft.limitationsXy.xy(),
                         ).color(Color32::YELLOW),
                     );
                     let mut even = false;

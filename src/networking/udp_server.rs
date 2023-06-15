@@ -168,7 +168,8 @@ impl UdpServer {
                 // debug!("{} added to queue: {:?}", logLoc, buf);
             },
             Err(err) => {
-                warn!("{} error add to queue: {:?}", logLoc, err);
+                let inner: [u8; UDP_BUF_SIZE]  = err.into_inner();
+                warn!("{} error add to queue: {:?}...", logLoc, &inner[0..4]);
             },
         };
     }

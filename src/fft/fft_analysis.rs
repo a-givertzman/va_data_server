@@ -59,7 +59,7 @@ pub struct FftAnalysis {
     pub fftAlarmXy: PlotData,
     pub fftXyDif: PlotData,
     pub envelopeXy: PlotData,
-    pub limitationsXy: Vec<[f64; 2]>,
+    pub limitationsXy: PlotData,
     pub baseFreq: f64,
     pub offsetFreq: f64,
     pub udpIndex: u8,
@@ -110,7 +110,7 @@ impl FftAnalysis {
             fftAlarmXy: PlotData::new(fftXyLen * 2),
             fftXyDif: PlotData::new(fftBuflen),
             envelopeXy: PlotData::new(fftBuflen),
-            limitationsXy: Self::buildLimitations(fftXyLen, 0.0),
+            limitationsXy: PlotData::new(fftXyLen), // Self::buildLimitations(fftXyLen * 2, 0.0),
             baseFreq: 0.0,
             offsetFreq: 0.0,
             udpIndex: 0,
@@ -119,9 +119,9 @@ impl FftAnalysis {
     }
     ///
     /// 
-    fn buildLimitations(len: usize, offset: f64) -> Vec<[f64; 2]> {
+    fn buildLimitations(&mut self, len: usize, offset: f64) {
         const logLoc: &str = "[FftAnalysis.buildLimitations]";
-        let mut res = vec![]; //vec![[0.0, 0.0]; len];
+        self.limitationsXy.clear();
         const low: f64 = 50.0;
         // let linitationsConf: BTreeMap<f64, f64> = BTreeMap::from([                
         let linitationsConf: Vec<(f64, f64)> = vec![                
@@ -142,15 +142,11 @@ impl FftAnalysis {
             if freq < 0.0 {
                 freq = 0.0;
             }
-            res.push([freq, prevAmplitude]);
-            res.push([freq, amplitude]);
+            self.limitationsXy.push([freq, prevAmplitude]);
+            self.limitationsXy.push([freq, amplitude]);
             prevAmplitude = amplitude;
         }
-        trace!("{} limitations: {:?}", logLoc, res);
-        // for i in 0..len {
-        //     res[i] = [0.0, 0.0];
-        // }
-        res
+        trace!("{} limitations: {:?}", logLoc, self.limitationsXy.xy());
     }
     ///
     ///
@@ -177,6 +173,7 @@ impl FftAnalysis {
             debug!("{} started in {:?}", logLoc, thread::current().name().unwrap());
             info!("{} started", logLoc);
             // let receiver = receiver.lock().unwrap();
+            me1.clone().lock().unwrap().buildLimitations(fftXyLen, 0.0);
             while !(me1.clone().lock().unwrap().cancel) {
                 // let mut buf = Some(Arc::new([0u8; UDP_BUF_SIZE]));
                 for queue in &queues {
@@ -188,7 +185,7 @@ impl FftAnalysis {
                                     me1.clone().lock().unwrap().baseFreq = value as f64;
                                     me1.clone().lock().unwrap().offsetFreq = (value as f64) - 3000.0;
                                     let offset = (value as f64) - 3000.0 / 60.0;
-                                    me1.clone().lock().unwrap().limitationsXy = Self::buildLimitations(fftXyLen, offset)
+                                    me1.clone().lock().unwrap().buildLimitations(fftXyLen, offset)
                                 }
                             },
                             Err(_) => {},
@@ -299,7 +296,7 @@ impl FftAnalysis {
     ///
     fn fftPointOverflowed(&self, freq: f64, amplitude: f64) -> bool {
         let mut range = Range {min: 0.0, max: 0.0};
-        for [x, amplitudeLimit] in self.limitationsXy.clone() {
+        for [x, amplitudeLimit] in self.limitationsXy.xy() {
             range.max = x;
             if range.contains(freq) {
                 return amplitude >= amplitudeLimit;
