@@ -129,7 +129,7 @@ impl eframe::App for UiApp {
         let headHight = 34.0;
         self.events.clear();
         let mut even = false;
-        for [freq, ampl] in self.fftAnalysis.lock().unwrap().fftAlarmXy.clone() {
+        for [freq, ampl] in self.fftAnalysis.lock().unwrap().fftAlarmXy.xy() {
             if even {
                 self.events.push(format!("Частота {:.1} Гц,  амплитуда {:.2} ", freq, ampl))
             }
@@ -387,7 +387,7 @@ impl eframe::App for UiApp {
                     );
                     let mut even = false;
                     let mut series = vec![];
-                    for item in analyzeFft.fftAlarmXy.clone() {
+                    for item in analyzeFft.fftAlarmXy.xy() {
                         series.push(item);
                         if even {
                             plotUi.line(

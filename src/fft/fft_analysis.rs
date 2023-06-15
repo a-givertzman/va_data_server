@@ -56,7 +56,7 @@ pub struct FftAnalysis {
     fft: Arc<dyn Fft<f64>>,
     pub fftXyLen: usize,
     pub fftXy: PlotData,
-    pub fftAlarmXy: Vec<[f64; 2]>,
+    pub fftAlarmXy: PlotData,
     pub fftXyDif: Vec<[f64; 2]>,
     pub envelopeXy: Vec<[f64; 2]>,
     pub limitationsXy: Vec<[f64; 2]>,
@@ -106,8 +106,8 @@ impl FftAnalysis {
             xy: PlotData::new(xyLen),
             fft: planner.plan_fft_forward(fftBuflen),
             fftXyLen: fftXyLen,
-            fftXy: PlotData::new(fftXyLen),
-            fftAlarmXy: vec![[0.0, 0.0]; fftXyLen],
+            fftXy: PlotData::new(fftXyLen * 2),
+            fftAlarmXy: PlotData::new(fftXyLen * 2),
             fftXyDif: vec![[0.0, 0.0]; fftBuflen],
             envelopeXy: vec![[0.0, 0.0]; fftBuflen],
             limitationsXy: Self::buildLimitations(fftXyLen, 0.0),
@@ -258,10 +258,6 @@ impl FftAnalysis {
                 self.complex.clear();
             }
             self.xy.add([self.t * 1.0e6, value]);
-            // self.xy.push([self.t * 1.0e6, value]);
-            // if self.xy.len() > self.xyLen {
-            //     self.xy.remove(0);
-            // }
             self.t += self.delta;
         }
         // debug!("{} done/n", logLoc);
@@ -279,6 +275,7 @@ impl FftAnalysis {
     ///
     ///
     fn buildFftXy(&mut self) {
+        // const logLoc: &str = "[FftAnalysis.buildFftXy]";
         let factor = 1.0 / ((self.fftBuflen / 4) as f64);
         let mut x: f64;
         let mut y: f64;
@@ -313,6 +310,7 @@ impl FftAnalysis {
     ///
     /// 
     fn buildEnvelope(&mut self) {
+        // const logLoc: &str = "[FftAnalysis.buildEnvelope]";
         let len = self.fftXyLen;
         // let mut buf: heapless::spsc::Queue<f64, 3> = heapless::spsc::Queue::new();
         let filterLen: usize = 256;
@@ -336,6 +334,7 @@ impl FftAnalysis {
     ///
     /// Производная от FFT
     fn buildFftXyDif(&mut self) {
+        // const logLoc: &str = "[FftAnalysis.buildFftXyDif]";
         let filterLen = 512;
         let mut filter: AverageFilter<f64> = AverageFilter::new(filterLen);
         let len = self.fftXyLen;
@@ -347,12 +346,12 @@ impl FftAnalysis {
         self.fftXyDif.push([0.0, 0.0]);
         for j in 1..len {
             i = j * 2 - 1;
-            y = self.fftXy.get(i)[1];
+            y = self.fftXy.get(j)[1];
             // yDif = (y - yPrev).abs();
             filter.add((y - yPrev).abs());
             yDif = filter.value() * 100.0 + 1000000.0;
             yPrev = y;
-            self.fftXyDif.push([self.fftXy.get(i)[0] - (filterLen / 2) as f64, yDif]);
+            self.fftXyDif.push([self.fftXy.get(j)[0] - (filterLen / 2) as f64, yDif]);
         }
         // for j in 0..(filterLen / 2) {
         //     i = len - (filterLen / 2) + j;
@@ -402,7 +401,11 @@ impl PlotData {
         self.xy[index] = xy;
     }
     pub fn get(&self, index: usize) -> [f64; 2] {
-        self.xy[index]
+        if index < self.xy.len() {
+            self.xy[index]
+        } else {
+            panic!("'index out of bounds: the len is {} but the index is {}'", self.xy.len(), index);
+        }
     }
     ///
     pub fn xy(&self) -> Vec<[f64; 2]> {
