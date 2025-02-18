@@ -160,9 +160,9 @@ impl FftAnalysis {
     }
     ///
     pub fn run(this: Arc<Mutex<Self>>) -> () {
-        const logLoc: &str = "[FftAnalysis.run]";
-        debug!("{} starting...", logLoc);
-        info!("{} enter", logLoc);
+        let dbg: &str = "FftAnalysis.run | ";
+        debug!("{} starting...", dbg);
+        info!("{} enter", dbg);
         let me = this.clone();
         let me1 = this.clone();
         let receiver = this.clone().lock().unwrap().receiver.clone();
@@ -170,8 +170,8 @@ impl FftAnalysis {
         let queues = this.clone().lock().unwrap().dsServer.queues.clone();
         let fftXyLen = me1.clone().lock().unwrap().fftXyLen;
         let handleDsServer = thread::Builder::new().name("FftAnalysis(DsServer) tread".to_string()).spawn(move || {
-            debug!("{} started in {:?}", logLoc, thread::current().name().unwrap());
-            info!("{} started", logLoc);
+            debug!("{} started in {:?}", dbg, thread::current().name().unwrap());
+            info!("{} started", dbg);
             // let receiver = receiver.lock().unwrap();
             me1.clone().lock().unwrap().buildLimitations(fftXyLen, 0.0);
             while !(me1.clone().lock().unwrap().cancel) {
@@ -180,8 +180,8 @@ impl FftAnalysis {
                     while !queue.is_empty() {
                         let _point = match queue.pop() {
                             Ok(point) => {
-                                if point.name == "Drive.Counter" {
-                                    let value = point.valueReal();
+                                if point.name() == "Drive.Counter" {
+                                    let value = point.as_real().value;
                                     me1.clone().lock().unwrap().baseFreq = value as f64;
                                     me1.clone().lock().unwrap().offsetFreq = (value as f64) - 3000.0;
                                     let offset = (value as f64) - 3000.0 / 60.0;
@@ -195,13 +195,13 @@ impl FftAnalysis {
                 }
                 thread::sleep(Duration::from_millis(10));
             }
-            info!("{} exit", logLoc);
+            info!("{} exit", dbg);
             // this.lock().unwrap().cancel = false;
         }).unwrap();
 
         let handle = thread::Builder::new().name("FftAnalysis tread".to_string()).spawn(move || {
-            debug!("{} started in {:?}", logLoc, thread::current().name().unwrap());
-            info!("{} started", logLoc);
+            debug!("{} started in {:?}", dbg, thread::current().name().unwrap());
+            info!("{} started", dbg);
             // let receiver = receiver.lock().unwrap();
             while !(this.clone().lock().unwrap().cancel) {
                 // let mut buf = Some(Arc::new([0u8; UDP_BUF_SIZE]));
@@ -212,16 +212,16 @@ impl FftAnalysis {
                             this.lock().unwrap().enqueue(buf);
                         }
                         Err(err) => {
-                            debug!("{} receive error: {:?}", logLoc, err);
+                            debug!("{} receive error: {:?}", dbg, err);
                         },
                     }
                 }
             }
-            info!("{} exit", logLoc);
+            info!("{} exit", dbg);
             // this.lock().unwrap().cancel = false;
         }).unwrap();
         me.lock().unwrap().handle = Some(handle);
-        debug!("{} started\n", logLoc);
+        debug!("{} started\n", dbg);
     }
     ///
     fn enqueue(&mut self, buf: [u8; UDP_BUF_SIZE]) {

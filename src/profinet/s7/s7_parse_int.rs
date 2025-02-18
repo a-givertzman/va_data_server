@@ -4,7 +4,10 @@ use sal_sync::services::entity::{
 };
 use std::array::TryFromSliceError;
 use chrono::{DateTime, Utc};
-use crate::{core_::filter::filter::{Filter, FilterEmpty}, services::profinet_client::parse_point::ParsePoint};
+use crate::{
+    filter::filter::{Filter, FilterEmpty},
+    profinet::parse_point::ParsePoint
+};
 ///
 ///
 #[derive(Debug)]

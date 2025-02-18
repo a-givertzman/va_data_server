@@ -10,7 +10,7 @@ use crate::{
     },
 };
 
-#[derive(Debug)]
+// #[derive(Debug)]
 pub struct DsIed {
     pub name: String,
     pub description: Option<String>,
@@ -54,7 +54,7 @@ impl DsIed {
         let dbg = "[DsIed.run]";
         for (_key, db) in &self.dbs {
             let mut client = S7Client::new(
-                self.name,
+                &self.name,
                 self.ip.clone(),
             );
             log::debug!("{} client: {:#?}", dbg, client);

@@ -1,6 +1,7 @@
 use std;
 use std::fs;
 use std::collections::HashMap;
+use indexmap::IndexMap;
 use serde::{Serialize, Deserialize};
 use serde_with;
 ///
@@ -54,7 +55,7 @@ pub struct DsDbConf {
     pub offset: Option<u32>,
     pub size: Option<u32>,
     pub delay: Option<u32>,
-    pub points: Option<HashMap<String, PointConf>>,
+    pub points: IndexMap<String, PointConf>,
 }
 ///
 /// 
@@ -63,7 +64,7 @@ pub struct DsDbConf {
 pub struct PointConf {
     // #[serde(flatten)]
     pub vrt: Option<u8>,
-    pub dataType: Option<String>,
+    pub data_type: String,
     pub offset: Option<u32>,
     pub bit: Option<u8>,
     pub h: Option<u8>,

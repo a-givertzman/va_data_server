@@ -1,32 +1,23 @@
-#![allow(non_snake_case)]
-#![allow(non_upper_case_globals)]
-
 use std::{
     collections::HashMap, 
-    thread::{self, JoinHandle}, sync::Arc,
+    thread::{self}, sync::Arc,
 };
-
 use concurrent_queue::ConcurrentQueue;
-use log::{
-    info,
-    debug,
-    // error,
-};
-
+use sal_sync::services::entity::point::point::Point;
 use crate::ds::{
     ds_config::DsConfig, 
-    ds_line::DsLine, ds_point::DsPoint,
+    ds_line::DsLine,
 };
 
 ///
 /// 
-#[derive(Debug)]
+// #[derive(Debug)]
 pub struct DsServer {
     pub name: String,
     pub description: Option<String>,
     pub config: DsConfig,
     lines: HashMap<String, DsLine>,
-    pub queues: Vec<Arc<ConcurrentQueue<DsPoint>>>,
+    pub queues: Vec<Arc<ConcurrentQueue<Point>>>,
     // handle: Option<JoinHandle<()>>,
     // cancel: bool,
     // sender: Arc<ConcurrentQueue<DsPoint>>,
@@ -59,10 +50,10 @@ impl DsServer {
     ///
     pub fn run(&mut self) {
         const logPref: &str = "[DsServer.run]";
-        info!("{} starting in thread: {:?}...", logPref, thread::current().name().unwrap());
+        log::info!("{} starting in thread: {:?}...", logPref, thread::current().name().unwrap());
         // let mut receivers: Vec<Arc<ConcurrentQueue<DsPoint>>>  = vec![];
         for (lineKey, lineConf) in &(self.config.lines) {
-            debug!("{} line {:?}: ", logPref, lineKey);
+            log::debug!("{} line {:?}: ", logPref, lineKey);
             let mut line = DsLine::new((*lineConf).clone());
             for (_iedKey, ied) in &line.ieds {
                 for (_dbKey, db) in &ied.dbs {
@@ -76,6 +67,6 @@ impl DsServer {
                 line,
             );
         }
-        info!("{} all lines started", logPref);
+        log::info!("{} all lines started", logPref);
     }
 }

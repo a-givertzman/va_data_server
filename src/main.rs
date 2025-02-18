@@ -4,6 +4,7 @@ mod presentation;
 mod interval;
 mod networking;
 mod fft;
+mod filter;
 mod profinet;
 mod ds;
 

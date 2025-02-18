@@ -8,7 +8,7 @@ use sal_sync::services::{
 };
 use std::array::TryFromSliceError;
 use chrono::{DateTime, Utc};
-use crate::services::profinet_client::parse_point::ParsePoint;
+use crate::profinet::parse_point::ParsePoint;
 
 ///
 ///
