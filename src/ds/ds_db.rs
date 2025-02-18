@@ -1,27 +1,15 @@
-#![allow(non_snake_case)]
-#![allow(non_upper_case_globals)]
-
 use std::{
     collections::{HashMap, BTreeMap}, 
     thread::{self, JoinHandle}, sync::{Arc, Mutex}, 
     time::Instant
 };
-
 use concurrent_queue::ConcurrentQueue;
-use log::{
-    info,
-    debug,
-    trace,
-    error,
-};
-
-use crate::ds::{
-    ds_config::{DsDbConf, DsPointConf}, 
-    ds_point::DsPoint, ds_status::DsStatus,
-};
-use crate::s7::{
-    s7_client::S7Client,
-    s7_parse_point::{ParsePoint, ParsePointType, S7ParsePointBool, S7ParsePointInt, S7ParsePointReal},
+use indexmap::IndexMap;
+use crate::{
+    ds::{
+        ds_config::{DsDbConf, PointConf}, 
+        ds_point::DsPoint, ds_status::DsStatus,
+    }, profinet::{parse_point::ParsePoint, s7::s7_client::S7Client}
 };
 pub(crate) const MAX_QUEUE_SIZE: usize = 1024 * 16;
 
@@ -33,8 +21,8 @@ pub struct DsDb {
     pub offset: u32,
     pub size: u32,
     pub delay: u32,
-    pub points: Option<HashMap<String, DsPointConf>>,
-    localPoints: BTreeMap<String, ParsePointType>,
+    pub points: Option<HashMap<String, PointConf>>,
+    parse_points: IndexMap<String, Box<dyn ParsePoint>>,
     handle: Option<JoinHandle<()>>,
     cancel: bool,
     sender: Arc<ConcurrentQueue<DsPoint>>,
@@ -42,53 +30,51 @@ pub struct DsDb {
 }
 impl DsDb {
     ///
-    pub fn new(
-        config: DsDbConf,
-    ) -> DsDb {
-        const logPref: &str = "[DsDb.new]";
+    pub fn new(config: DsDbConf) -> DsDb {
+        let dbg: &str = "DsDb.new | ";
         let _path = config.name.clone();
-        let mut dbPoints: BTreeMap<String, ParsePointType> = BTreeMap::new();
+        let mut db_points: BTreeMap<String, ParsePointType> = BTreeMap::new();
         match config.points.clone() {
             None => (),
-            Some(confPoints) => {
-                for (pointKey, point) in confPoints {
+            Some(conf_points) => {
+                for (point_key, point) in conf_points {
                     // debug!("\t\t\tdb {:?}: {:?}", pointKey, &point);
-                    let dataType = &point.dataType.clone().unwrap();
-                    if *dataType == "Bool".to_string() {
-                        dbPoints.insert(
-                            pointKey.clone(),
+                    let data_type = &point.dataType.clone().unwrap();
+                    if *data_type == "Bool".to_string() {
+                        db_points.insert(
+                            point_key.clone(),
                             ParsePointType::Bool(
                                 S7ParsePointBool::new(
-                                    pointKey.clone(),
-                                    pointKey.clone(),
+                                    point_key.clone(),
+                                    point_key.clone(),
                                     point,
                                 ),
                             ),
                         );
-                    } else if *dataType == "Int".to_string() {
-                        dbPoints.insert(
-                            pointKey.clone(),
+                    } else if *data_type == "Int".to_string() {
+                        db_points.insert(
+                            point_key.clone(),
                             ParsePointType::Int(
                                 S7ParsePointInt::new(
-                                    pointKey.clone(), 
-                                    pointKey.clone(), 
+                                    point_key.clone(), 
+                                    point_key.clone(), 
                                     point,
                                 ),
                             ),
                         );
-                    } else if *dataType == "Real".to_string() {
-                        dbPoints.insert(
-                            pointKey.clone(),
+                    } else if *data_type == "Real".to_string() {
+                        db_points.insert(
+                            point_key.clone(),
                             ParsePointType::Real(
                                 S7ParsePointReal::new(
-                                    pointKey.clone(), 
-                                    pointKey.clone(), 
+                                    point_key.clone(), 
+                                    point_key.clone(), 
                                     point,
                                 ),
                             ),
                         );
                     } else {
-                        error!("{} point {:?}: uncnoun data type {:?}", logPref, pointKey, dataType);
+                        log::error!("{} point {:?}: uncnoun data type {:?}", logPref, pointKey, dataType);
                     }
                 }
             }
@@ -102,7 +88,7 @@ impl DsDb {
             size: match config.size { None => 0, Some(v) => v },
             delay: match config.delay { None => 0, Some(v) => v },
             points: config.points,  // Some(localPoints),
-            localPoints: dbPoints,
+            parse_points: db_points,
             handle: None,
             cancel: false,
             sender: sender.clone(),
@@ -111,13 +97,31 @@ impl DsDb {
 
     }
     ///
-    // fn read() {
-
-    // }
+    /// Configuring ParsePoint objects depending on point configurations coming from [conf]
+    fn configure_parse_points(self_id: &str, tx_id: usize, conf: &ProfinetDbConfig) -> IndexMap<String, Box<dyn ParsePoint>> {
+        conf.points.iter().map(|point_conf| {
+            match point_conf.type_ {
+                PointConfigType::Bool => {
+                    (point_conf.name.clone(), Self::box_bool(tx_id, point_conf.name.clone(), point_conf))
+                }
+                PointConfigType::Int => {
+                    (point_conf.name.clone(), Self::box_int(tx_id, point_conf.name.clone(), point_conf))
+                }
+                PointConfigType::Real => {
+                    (point_conf.name.clone(), Self::box_real(tx_id, point_conf.name.clone(), point_conf))
+                }
+                PointConfigType::Double => {
+                    (point_conf.name.clone(), Self::box_real(tx_id, point_conf.name.clone(), point_conf))
+                }
+                _ => panic!("{}.configureParsePoints | Unknown type '{:?}' for S7 Device", self_id, point_conf.type_)
+            }
+        }).collect()
+    }
+    ///
     ///
     pub fn run(this: Arc<Mutex<Self>>, client: S7Client) {
         const logPref: &str = "[DsDb.run]";
-        info!("{} starting in thread: {:?}...", logPref, thread::current().name().unwrap());
+        log::info!("{} starting in thread: {:?}...", logPref, thread::current().name().unwrap());
         // let h = &mut self.handle;
         let me = this.clone();
         let me1 = this.clone();
@@ -129,13 +133,13 @@ impl DsDb {
                 let t = Instant::now();
                 // let t = Utc::now();
                 if client.isConnected {
-                    trace!("{} reading DB: {:?}, offset: {:?}, size: {:?}", logPref, me.number, me.offset, me.size);
+                    log::trace!("{} reading DB: {:?}, offset: {:?}, size: {:?}", logPref, me.number, me.offset, me.size);
                     match client.read(me.number, me.offset, me.size) {
                         Ok(bytes) => {
                             // let bytes = client.read(899, 0, 34).unwrap();
                             // print!("\x1B[2J\x1B[1;1H");
                             // debug!("{:?}", bytes);
-                            for (_key, pointType) in &me.localPoints {
+                            for (_key, pointType) in &me.parse_points {
                                 match pointType.clone() {
                                     ParsePointType::Bool(mut point) => {
                                         point.addRaw(&bytes);
@@ -189,12 +193,12 @@ impl DsDb {
                             }
                         }        
                         Err(err) => {
-                            error!("{} client.read error: {}", logPref, err);
+                            log::error!("{} client.read error: {}", logPref, err);
                             std::thread::sleep(std::time::Duration::from_millis((delay * 100) as u64));
                         },
                     }
                 } else {
-                    error!("{} wait for connection...", logPref);
+                    log::error!("{} wait for connection...", logPref);
                     std::thread::sleep(std::time::Duration::from_millis((delay * 100) as u64));
                 }
                 let dt = Instant::now() - t;
@@ -204,11 +208,11 @@ impl DsDb {
                     std::thread::sleep(std::time::Duration::from_millis(wait as u64));
                 }
                 let dt = Instant::now() - t;
-                trace!("{} {:?} elapsed: {:?} ({:?})", logPref, me.name , dt, dt.as_millis());
+                log::trace!("{} {:?} elapsed: {:?} ({:?})", logPref, me.name , dt, dt.as_millis());
             }
-            info!("{} exit", logPref);
+            log::info!("{} exit", logPref);
         }).unwrap();
         me1.lock().unwrap().handle = Some(handle);
-        info!("{} started", logPref);
+        log::info!("{} started", logPref);
     }
 }

@@ -1,14 +1,10 @@
-#![allow(non_snake_case)]
-#![allow(non_upper_case_globals)]
-
 use std;
 use std::fs;
 use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
 use serde_with;
-
-
-// #[serde_with::skip_serializing_none]
+///
+/// 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DsConfig {
     // #[serde(flatten)]
@@ -16,13 +12,14 @@ pub struct DsConfig {
 }
 impl DsConfig {
     pub fn new(path: String) -> DsConfig {
-        let configJson = fs::read_to_string(&path)
+        let config_json = fs::read_to_string(&path)
             .expect(&format!("Error read file {}", path));
-        let lines: HashMap<String, DsLineConf> = serde_json::from_str(&configJson).unwrap();
+        let lines: HashMap<String, DsLineConf> = serde_json::from_str(&config_json).unwrap();
         DsConfig{lines}
     }
 }
-
+///
+/// 
 #[serde_with::skip_serializing_none]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DsLineConf {
@@ -31,7 +28,8 @@ pub struct DsLineConf {
     pub description: Option<String>,
     pub ieds: Option<HashMap<String, DsIedConf>>,
 }
-
+///
+/// 
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DsIedConf {
@@ -43,7 +41,8 @@ pub struct DsIedConf {
     pub slot: Option<u32>,
     pub dbs: Option<HashMap<String, DsDbConf>>,
 }
-
+///
+/// 
 #[serde_with::skip_serializing_none]
 // #[derive(Clone)]: #[derive(Clone)]
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -55,12 +54,13 @@ pub struct DsDbConf {
     pub offset: Option<u32>,
     pub size: Option<u32>,
     pub delay: Option<u32>,
-    pub points: Option<HashMap<String, DsPointConf>>,
+    pub points: Option<HashMap<String, PointConf>>,
 }
-
+///
+/// 
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct DsPointConf {
+pub struct PointConf {
     // #[serde(flatten)]
     pub vrt: Option<u8>,
     pub dataType: Option<String>,

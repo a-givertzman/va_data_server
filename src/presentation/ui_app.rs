@@ -7,22 +7,20 @@ use log::{
     debug,
     // warn,
 };
-use std::{
-    sync::{
-        Arc, 
-        Mutex
-    }, 
+use std::sync::{
+    Arc, 
+    Mutex,
 };
 use egui::{
     vec2,
-    plot::{
-        Plot, 
-        Points, 
-        // PlotPoints, 
-        Line
-    }, 
     Color32, Align2, FontFamily, TextStyle, FontId, 
     // mutex::Mutex,
+};
+use egui_plot::{
+    Plot, 
+    Points, 
+    // PlotPoints, 
+    Line,
 };
 use crate::{
     networking::udp_server::UdpServer, 
@@ -82,9 +80,9 @@ impl UiApp {
         // .ttf and .otf files supported.
         fonts.font_data.insert(
             "Icons".to_owned(),
-            egui::FontData::from_static(include_bytes!(
+            Arc::new(egui::FontData::from_static(include_bytes!(
                 "../../assets/fonts/icons.ttf"
-            )),
+            ))),
         );
 
         // Put my font first (highest priority) for proportional text:
@@ -124,8 +122,8 @@ impl UiApp {
 ///
 ///
 impl eframe::App for UiApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        let wSize = _frame.info().window_info.size;
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        let wSize = ctx.input(|i| i.viewport().outer_rect.unwrap());
         let headHight = 34.0;
         self.events.clear();
         let mut even = false;
@@ -138,7 +136,7 @@ impl eframe::App for UiApp {
 
         egui::Window::new("Events")
             .anchor(Align2::RIGHT_BOTTOM, [0.0, 0.0])
-            .default_size(vec2(0.4 * wSize.x, 0.5 * wSize.y - headHight))
+            .default_size(vec2(0.4 * wSize.width(), 0.5 * wSize.height() - headHight))
             .show(ctx, |ui| {
                 // let btn = Button::image_and_text(
                 //     Te
@@ -159,7 +157,7 @@ impl eframe::App for UiApp {
             });
         egui::Window::new("real input")
             .anchor(Align2::RIGHT_TOP, [0.0, 0.0])
-            .default_size(vec2(0.4 * wSize.x, 0.45 * wSize.y - headHight))
+            .default_size(vec2(0.4 * wSize.width(), 0.45 * wSize.height() - headHight))
             .show(ctx, |ui| {
                 // debug!("[UiApp.update] self.udpSrv.lock...");
                 match self.fftAnalysis.lock() {
@@ -299,7 +297,7 @@ impl eframe::App for UiApp {
         // });
         egui::Window::new("FFT")
             .anchor(Align2::LEFT_TOP, [0.0, 0.0])
-            .default_size(vec2(0.6 * wSize.x, 1.0 * wSize.y - headHight))
+            .default_size(vec2(0.6 * wSize.width(), 1.0 * wSize.height() - headHight))
             .show(ctx, |ui| {
                 let analyzeFft = self.fftAnalysis.lock().unwrap();
                 // ui.label(format!("new fft: '{}'", 0));

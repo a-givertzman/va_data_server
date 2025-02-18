@@ -1,21 +1,13 @@
-#![allow(non_snake_case)]
-#![allow(non_upper_case_globals)]
-
 mod circular_queue;
 mod dsp_filters;
 mod presentation;
 mod interval;
 mod networking;
 mod fft;
-mod s7;
+mod profinet;
 mod ds;
 
-use log::{
-    // info,
-    // trace,
-    debug,
-    // warn,
-};
+use egui::viewport;
 use std::{
     env,
     error::Error, 
@@ -45,53 +37,53 @@ fn main() -> Result<(), Box<dyn Error>> {
     // const sampleRate: f32 = 2_048.0000;
     // const PI2f: f64 = (PI2 as f64) * sampleRate;
     // InputSignal::run(inputSignal.clone())?;
-    // debug!("[main] InputSignal ready\n");
+    // log::debug!("[main] InputSignal ready\n");
 
 
-    // debug!("[main] creating TcpServer...");
+    // log::debug!("[main] creating TcpServer...");
     // let tcpSrv = Arc::new(Mutex::new(
     //     TcpServer::new(
     //         "127.0.0.1:5180",
     //         inputSignal.clone(),
     //     )
     // ));
-    // debug!("[main] TcpServer created");
+    // log::debug!("[main] TcpServer created");
     // TcpServer::run(tcpSrv)?;
 
 
 
-    debug!("[main] creating DsServer...");
-    let mut dsServer = DsServer::new();
-    debug!("[main] DsServer created");
-    dsServer.run();
+    log::debug!("[main] creating DsServer...");
+    let mut ds_server = DsServer::new();
+    log::debug!("[main] DsServer created");
+    ds_server.run();
 
 
-    let reconnectDelay = Duration::from_secs(3);
-    let localAddr = "192.168.100.172:15180";
-    let remoteAddr = "192.168.100.173:15180";
-    debug!("[main] creating UdpServer...");
-    let udpSrv = Arc::new(Mutex::new(
+    let reconnect_delay = Duration::from_secs(3);
+    let local_addr = "192.168.100.172:15180";
+    let remote_addr = "192.168.100.173:15180";
+    log::debug!("[main] creating UdpServer...");
+    let udp_srv = Arc::new(Mutex::new(
         UdpServer::new(
-            localAddr,
-            remoteAddr,
-            Some(reconnectDelay),
+            local_addr,
+            remote_addr,
+            Some(reconnect_delay),
         )
     ));
-    debug!("[main] UdpServer created");
-    UdpServer::run(udpSrv.clone());
+    log::debug!("[main] UdpServer created");
+    UdpServer::run(udp_srv.clone());
 
 
-    debug!("[main] creating FftAnalysis...");
+    log::debug!("[main] creating FftAnalysis...");
     let fftAnalysis = Arc::new(Mutex::new(
         FftAnalysis::new(
             320_000.0,
             320_000,
-            udpSrv.clone().lock().unwrap().receiver.clone(),
-            udpSrv.clone(),
-            dsServer
+            udp_srv.clone().lock().unwrap().receiver.clone(),
+            udp_srv.clone(),
+            ds_server
         )
     ));
-    debug!("[main] FftAnalysis created");
+    log::debug!("[main] FftAnalysis created");
     FftAnalysis::run(fftAnalysis.clone());
 
 
@@ -107,18 +99,19 @@ fn main() -> Result<(), Box<dyn Error>> {
     eframe::run_native(
         "Rpi-FFT-App", 
         eframe::NativeOptions {
+            viewport: viewport::ViewportBuilder::default().with_inner_size([1920.0, 840.0]),
             // fullscreen: true,
             // maximized: true,
-            initial_window_size: Some(egui::Vec2 { x: 1920.0, y: 840.0 }),
+            // initial_window_size: Some(egui::Vec2 { x: 1920.0, y: 840.0 }),
             ..Default::default()
         }, 
-        Box::new(|cc| Box::new(
+        Box::new(|cc| Ok(Box::new(
             UiApp::new(
                 cc,
-                udpSrv,
+                udp_srv,
                 fftAnalysis,
             ),
-        ))    
-    )?;    
+        ))),
+    )?;
     Ok(())
 }

@@ -1,21 +1,13 @@
-#![allow(non_snake_case)]
-#![allow(non_upper_case_globals)]
-
 use std::{
     sync::{Arc, Mutex},
     collections::HashMap,
 };
-use log::{
-    // info,
-    debug,
-    // error,
-};
-use crate::ds::{
-    ds_db::DsDb,
-    ds_config::DsIedConf, 
-};
-use crate::s7::{
-    s7_client::S7Client,
+use crate::{
+    profinet::s7::s7_client::S7Client,
+    ds::{
+        ds_db::DsDb,
+        ds_config::DsIedConf, 
+    },
 };
 
 #[derive(Debug)]
@@ -36,12 +28,12 @@ impl DsIed {
         let mut dbs: HashMap<String, Arc<Mutex<DsDb>>> = HashMap::new();
         match config.dbs.clone() {
             None => (),
-            Some(confDbs) => {
-                for (dbKey, dbConf) in confDbs {
-                    let db = Arc::new(Mutex::new(DsDb::new(dbConf)));
+            Some(conf_dbs) => {
+                for (db_key, db_conf) in conf_dbs {
+                    let db = Arc::new(Mutex::new(DsDb::new(db_conf)));
                     // debug!("\t\tdb {:?}: {:#?}", dbKey, db);
                     dbs.insert(
-                        dbKey, 
+                        db_key, 
                         db,
                     );
                 }
@@ -59,13 +51,13 @@ impl DsIed {
     }
     ///
     pub fn run(&mut self) {
-        const logPref: &str = "[DsIed.run]";
+        let dbg = "[DsIed.run]";
         for (_key, db) in &self.dbs {
             let mut client = S7Client::new(
+                self.name,
                 self.ip.clone(),
-                None,
             );
-            // debug!("{} client: {:#?}", logPref, client);
+            log::debug!("{} client: {:#?}", dbg, client);
             client.connect();
             // debug!("{} client: {:#?}", logPref, client);
             DsDb::run(db.clone(), client);
