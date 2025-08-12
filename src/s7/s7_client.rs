@@ -1,129 +1,133 @@
-#![allow(non_snake_case)]
-#![allow(non_upper_case_globals)]
-
-use snap7_sys::*;
+use snap7_sys::S7Object;
 use std::ffi::CString;
-use std::os::raw::{
-    c_int,
-    c_char,
-    c_void,
-};
-use std::sync::{Mutex, Arc};
-use std::thread;
-use std::time::Duration;
-use log::{
-    info,
-    debug,
-    error,
-};
+use std::ffi::{c_void, c_int};
 
+use super::s7_error::S7Error;
+use super::s7_lib::S7LIB;
+
+///
+/// Ethrnet access to the PROFINET device
 #[derive(Debug)]
 pub struct S7Client {
+    pub id: String,
     ip: CString,
     handle: S7Object,
-    cancel: bool,
     req_len: usize,
     neg_len: usize,
-    pub isConnected: bool,
-    reconnectDelay: Duration,
+    // isConnected: bool,
+    // reconnectDelay: Duration,
 }
+//
+// 
 impl S7Client {
-    pub fn new(
-        ip: String, 
-        reconnectDelay: Option<Duration>,
-    ) -> Self {
+    ///
+    /// Creates new instance of the S7Client
+    pub fn new(parent: impl Into<String>, ip: String) -> Self {
         Self {
+            id: format!("{}/S7Client({})", parent.into(), ip),
             ip: CString::new(ip).unwrap(),
-            handle: unsafe { Cli_Create() },
-            cancel: false,
+            handle: unsafe { S7LIB.Cli_Create() },
             req_len: 0,
             neg_len: 0,
-            isConnected: false,
-            reconnectDelay: match reconnectDelay {
-                Some(delay) => delay, 
-                None => Duration::from_secs(3) 
-            },
+            // isConnected: false,
         }
     }
-    pub fn connect(&mut self) {
-        const logPref: &str = "[S7Client.connect]";
+    ///
+    /// Connects the client to the PLC
+    pub fn connect(&mut self) -> Result<(), S7Error> {
         let mut req: c_int = 0;
         let mut neg: c_int = 0;
-        let mut err = 0;
-        let me = Arc::new(Mutex::new(&self));
-        // let handle = thread::Builder::new().name("S7Client.connect.thread".to_string()).spawn(move || {
-        //     while me.clone().lock().unwrap().cancel {
-                
-        //     }
-        // }).unwrap();
-        let mut count = 3;
-        while !self.isConnected && count > 0{
-            unsafe {
-                // #[warn(temporary_cstring_as_ptr)]
-                err = Cli_ConnectTo(self.handle, self.ip.as_ptr(), 0, 1);
-                Cli_GetPduLength(self.handle, &mut req, &mut neg);
-                self.req_len = req as usize;
-                self.neg_len = neg as usize;
+        let err_code = unsafe {
+            // #[warn(temporary_cstring_as_ptr)]
+            let err_code = S7LIB.Cli_ConnectTo(self.handle, self.ip.as_ptr(), 0, 1);
+            S7LIB.Cli_GetPduLength(self.handle, &mut req, &mut neg);
+            self.req_len = req as usize;
+            self.neg_len = neg as usize;
+            err_code
+        };
+        if err_code == 0 {
+            // self.isConnected = true;
+            log::debug!("{}.connect | successfully connected", self.id);
+            Ok(())
+        } else {
+            // self.isConnected = false;
+            let err = S7Error::from(err_code);
+            if log::max_level() == log::LevelFilter::Trace {
+                log::warn!("{}.connect | connection error: {:?}", self.id, err);
             }
-            if err == 0 {
-                self.isConnected = true;
-                info!("{} {:?} | successfully connected", logPref, self.ip);
-            } else {
-                self.isConnected = false;
-                error!("{} {:?} | connection error: {:?}", logPref, self.ip, err);
-                thread::sleep(self.reconnectDelay);
-            }
-            count -= 1;
+            Err(err)
         }
     }
-    pub fn read(&self, dbNum: u32, start: u32, size: u32) -> Result<Vec<u8>, String> {
-        let mut buf = Vec::<u8>::new();
-        buf.resize(size as usize, 0);
-        let res;
+    ///
+    /// Returns the connection status
+    pub fn is_connected(&self) -> Result<bool, String> {
+        let mut is_connected: c_int = 0;
+        let code = unsafe {
+            S7LIB.Cli_GetConnected(self.handle, &mut is_connected)
+        };
+        match code {
+            0 => Ok(is_connected != 0),
+            _ => Err(S7Error::text(code))
+        }
+    }
+    ///
+    /// This is the main function to read data from a PLC.
+    /// With it you can read DB, Inputs, Outputs, Merkers, Timers and Counters
+    pub fn read(&self, db_num: u32, start: u32, size: u32) -> Result<Vec<u8>, String> {
+        let mut buf = vec![0; size as usize];
+        let code;
         unsafe {
-            res = Cli_DBRead(
+            code = S7LIB.Cli_DBRead(
                 self.handle,
-                dbNum as c_int,
+                db_num as c_int,
                 start as c_int,
                 size as c_int,
-                buf.as_mut_ptr() as *mut c_void
-            ) as i32;
+                buf.as_mut_ptr() as *mut c_void,
+            );
         }
-        if res == 0 {
-            Ok(buf)
-        } else {
-            Err(String::from(error_text(res)))
+        match code {
+            0 => Ok(buf),
+            _ => Err(S7Error::text(code)),
         }
     }
-    pub fn close(&mut self) {
-        unsafe {
-            Cli_Disconnect(self.handle);
+    ///
+    /// This is the main function to write data into a PLC. It’s the complementary function of
+    /// Cli_ReadArea(), the parameters and their meanings are the same.
+    /// The only difference is that the data is transferred from the buffer pointed by pUsrData
+    /// into PLC.
+    pub fn write(&self, db_num: u32, start: u32, size: u32, buf: &mut [u8]) -> Result<(), String> {
+        let code = unsafe {
+            S7LIB.Cli_DBWrite(
+                self.handle,
+                db_num as c_int, 
+                start as c_int, 
+                size as c_int, 
+                buf.as_mut_ptr() as *mut c_void,
+            )
+        };
+        match code {
+            0 => Ok(()),
+            _ => Err(S7Error::text(code)),
+        }
+    }
+    ///
+    /// Disconnects “gracefully” the Client from the PLC.
+    pub fn close(&mut self) -> Result<(), String> {
+        let code = unsafe {
+            S7LIB.Cli_Disconnect(self.handle)
+        };
+        match code {
+            0 => Ok(()),
+            _ => Err(S7Error::text(code)),
         }
     }
 }
+//
+// 
 impl Drop for S7Client {
     fn drop(&mut self) {
-        self.close();
         unsafe {
-            Cli_Destroy(&mut self.handle);
+            S7LIB.Cli_Destroy(&mut self.handle);
         }
     }
-}
-pub fn error_text(code: i32) -> String {
-    let mut err = Vec::<u8>::new();
-    err.resize(1024, 0);
-    unsafe {
-        Cli_ErrorText(
-            code as c_int, 
-            err.as_mut_ptr() as *mut c_char, 
-            err.len() as c_int
-        );
-    }
-    if let Some(i) = err.iter().position(|&r| r == 0) {
-        err.truncate(i);
-    }
-    let err = unsafe {
-        std::str::from_utf8_unchecked(&err)
-    };
-    err.to_owned()
 }

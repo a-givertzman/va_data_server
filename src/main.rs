@@ -1,6 +1,3 @@
-#![allow(non_snake_case)]
-#![allow(non_upper_case_globals)]
-
 mod circular_queue;
 mod dsp_filters;
 mod presentation;
@@ -17,7 +14,6 @@ use log::{
     // warn,
 };
 use std::{
-    env,
     error::Error, 
     sync::{
         Arc,
@@ -35,10 +31,7 @@ use crate::{
 ///
 /// 
 fn main() -> Result<(), Box<dyn Error>> {
-    env::set_var("RUST_LOG", "debug");
-    // env::set_var("RUST_BACKTRACE", "1");
-    env::set_var("RUST_BACKTRACE", "full");
-    env_logger::init();
+    env_logger::Builder::new().filter_level(log::LevelFilter::Debug).init();
 
 
     // const N: usize = 32_768;
@@ -61,38 +54,38 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 
     debug!("[main] creating DsServer...");
-    let mut dsServer = DsServer::new();
+    let mut ds_server = DsServer::new();
     debug!("[main] DsServer created");
-    dsServer.run();
+    ds_server.run();
 
 
-    let reconnectDelay = Duration::from_secs(3);
-    let localAddr = "192.168.100.172:15180";
-    let remoteAddr = "192.168.100.173:15180";
+    let reconnect_delay = Duration::from_secs(3);
+    let local_addr = "192.168.100.172:15180";
+    let remote_addr = "192.168.100.173:15180";
     debug!("[main] creating UdpServer...");
-    let udpSrv = Arc::new(Mutex::new(
+    let udp_srv = Arc::new(Mutex::new(
         UdpServer::new(
-            localAddr,
-            remoteAddr,
-            Some(reconnectDelay),
+            local_addr,
+            remote_addr,
+            Some(reconnect_delay),
         )
     ));
     debug!("[main] UdpServer created");
-    UdpServer::run(udpSrv.clone());
+    UdpServer::run(udp_srv.clone());
 
 
     debug!("[main] creating FftAnalysis...");
-    let fftAnalysis = Arc::new(Mutex::new(
+    let fft_analysis = Arc::new(Mutex::new(
         FftAnalysis::new(
             320_000.0,
             320_000,
-            udpSrv.clone().lock().unwrap().receiver.clone(),
-            udpSrv.clone(),
-            dsServer
+            udp_srv.clone().lock().unwrap().receiver.clone(),
+            udp_srv.clone(),
+            ds_server
         )
     ));
     debug!("[main] FftAnalysis created");
-    FftAnalysis::run(fftAnalysis.clone());
+    FftAnalysis::run(fft_analysis.clone());
 
 
     // let analyzeFft = Arc::new(Mutex::new(
@@ -109,16 +102,16 @@ fn main() -> Result<(), Box<dyn Error>> {
         eframe::NativeOptions {
             // fullscreen: true,
             // maximized: true,
-            initial_window_size: Some(egui::Vec2 { x: 1920.0, y: 840.0 }),
+            viewport: egui::ViewportBuilder::default().with_inner_size([1920.0, 840.0]),
             ..Default::default()
         }, 
-        Box::new(|cc| Box::new(
+        Box::new(|cc| Ok(Box::new(
             UiApp::new(
                 cc,
-                udpSrv,
-                fftAnalysis,
+                udp_srv,
+                fft_analysis,
             ),
-        ))    
+        )))    
     )?;    
     Ok(())
 }

@@ -1,9 +1,6 @@
-#![allow(non_snake_case)]
-#![allow(non_upper_case_globals)]
-
 use std::{
     collections::HashMap, 
-    thread::{self, JoinHandle}, sync::Arc,
+    thread::{self}, sync::Arc,
 };
 
 use concurrent_queue::ConcurrentQueue;
@@ -58,24 +55,24 @@ impl DsServer {
     // }
     ///
     pub fn run(&mut self) {
-        const logPref: &str = "[DsServer.run]";
-        info!("{} starting in thread: {:?}...", logPref, thread::current().name().unwrap());
+        let dbg = "DsServer.run";
+        info!("{} starting in thread: {:?}...", dbg, thread::current().name().unwrap());
         // let mut receivers: Vec<Arc<ConcurrentQueue<DsPoint>>>  = vec![];
-        for (lineKey, lineConf) in &(self.config.lines) {
-            debug!("{} line {:?}: ", logPref, lineKey);
-            let mut line = DsLine::new((*lineConf).clone());
-            for (_iedKey, ied) in &line.ieds {
-                for (_dbKey, db) in &ied.dbs {
-                    let rcv = &db.lock().unwrap().receiver;
+        for (line_key, line_conf) in &(self.config.lines) {
+            debug!("{} line {:?}: ", dbg, line_key);
+            let mut line = DsLine::new((*line_conf).clone());
+            for (_ied_key, ied) in &line.ieds {
+                for (_db_key, db) in &ied.dbs {
+                    let rcv = &db.lock().receiver;
                     self.queues.push(rcv.clone());
                 }
             }
             line.run();
             self.lines.insert(
-                lineKey.clone(), 
+                line_key.clone(), 
                 line,
             );
         }
-        info!("{} all lines started", logPref);
+        info!("{} all lines started", dbg);
     }
 }
