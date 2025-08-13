@@ -7,6 +7,8 @@ mod fft;
 mod s7;
 mod ds;
 
+#[cfg(not(feature = "plot"))]
+use eframe::{EventLoopBuilder, UserEvent};
 use log::{
     // info,
     // trace,

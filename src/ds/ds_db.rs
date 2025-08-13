@@ -186,11 +186,11 @@ impl DsDb {
                                 },
                             }
                         } else {
-                            log::error!("{dbg} wait for connection...");
+                            log::debug!("{dbg} wait for connection...");
                             std::thread::sleep(std::time::Duration::from_millis((delay * 100) as u64));
                         }
                     }
-                    Err(err) => log::error!("{dbg} wait for connection...\n\t error: {:?}", err),
+                    Err(err) => log::debug!("{dbg} wait for connection...\n\t error: {:?}", err),
                 }
                 let dt = Instant::now() - t;
                 // debug!("{} {:?} elapsed: {:?} ({:?})", logPref, me.name , dt, dt.as_millis());
