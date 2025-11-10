@@ -58,11 +58,11 @@ impl UdpServer {
     ///
     ///
     pub fn restart(&mut self) {
-        const logLoc: &str = "[UdpServer.restart]";
-        debug!("{} started...", logLoc);
+        const LOG_LOC: &str = "[UdpServer.restart]";
+        debug!("{} started...", LOG_LOC);
         self.restart = true;
         self.cancel = true;
-        debug!("{} done", logLoc);
+        debug!("{} done", LOG_LOC);
     }
     ///
     pub fn run(this: Arc<Mutex<Self>>) -> () {

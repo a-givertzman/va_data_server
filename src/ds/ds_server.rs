@@ -33,8 +33,9 @@ impl DsServer {
     ///
     pub fn new(
     ) -> DsServer {
-        let dir = std::env::current_dir().unwrap();
-        let path: &str = &format!("{}/conf.json", dir.to_str().unwrap());
+        // let dir = std::env::current_dir().unwrap().to_str().unwrap();
+        let dir = ".";
+        let path: &str = &format!("{}/conf.json", dir);
         let config = DsConfig::new(path.to_string());
         DsServer {
             name: "DsServer".to_string(),   // config.name
