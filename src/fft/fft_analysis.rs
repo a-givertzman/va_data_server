@@ -153,8 +153,10 @@ impl FftAnalysis {
         log::debug!("{}.restart | started...", self.dbg);
         self.udp_index.store(0, Ordering::Release);
         self.udp_lost.store(0.0);
-        self.udp_client.restart();
-        log::debug!("{}.restart | done", self.dbg);
+        match self.udp_client.restart() {
+            Ok(_) => log::debug!("{}.restart | done", self.dbg),
+            Err(err) => log::debug!("{}.restart | Error: {:?}", self.dbg, err),
+        }
     }
     ///
     fn enqueue(
