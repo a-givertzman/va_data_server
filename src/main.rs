@@ -53,6 +53,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     path: point/id.json
         "#).unwrap()),
     ), Some(tp.scheduler())));
+    services.run()?;
 
     log::debug!("[main] configuring UdpClient...");
     let path = "./udp-client.yaml";

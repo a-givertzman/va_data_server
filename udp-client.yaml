@@ -4,7 +4,7 @@ service UdpClient:
     # send-to: /test/MultiQueue.in-queue
     send-to: /main/FftAnalysis.in-queue
     cycle: 1 ms                         # operating cycle time of the device
-    reconnect: 100 ms                  # reconnect timeout when connection is lost
+    reconnect: 3000 ms                  # reconnect timeout when connection is lost
     protocol: 'udp-raw'
     local-address: 127.0.0.1:15181
     remote-address: 127.0.0.1:15180

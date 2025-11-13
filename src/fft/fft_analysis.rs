@@ -409,10 +409,11 @@ impl Service for FftAnalysis {
         let delta = self.delta.clone();
         let exit = self.exit.clone();
         let handle2 = thread::Builder::new().name("FftAnalysis tread".to_string()).spawn(move || {
+            log::debug!("{dbg}.run | Reading events...");
             let mut received = 0;
             while !(exit.load(Ordering::Acquire)) {
                 // let mut buf = Some(Arc::new([0u8; UDP_BUF_SIZE]));
-                let mut err_limit = ErrorLimit::new(10);
+                let mut err_limit = ErrorLimit::new(3);
                 let mut buf = vec![];
                 match receiver.recv_timeout(RECV_TIMEOUT) {
                     Ok(event) => {
@@ -444,13 +445,13 @@ impl Service for FftAnalysis {
                     Err(err) => match err {
                         RecvTimeoutError::Timeout => {
                             if buf.len() != received {
-                                log::debug!("{dbg}.run | Wrong buffer len {}, ecpected {}", buf.len(), fft_buflen);
+                                log::warn!("{dbg}.run | Wrong buffer len {}, ecpected {}", buf.len(), fft_buflen);
                                 received = buf.len();
                             }
                             if let Err(_) = err_limit.add() {
                                 match buf.len() {
-                                    0 => log::debug!("{dbg}.run | Can't receive buffer, reseting, waiting buffer..."),
-                                    _ => log::debug!("{dbg}.run | Can't receive required buffer len {}, reseting, waiting new buffer...", fft_buflen)
+                                    0 => log::warn!("{dbg}.run | Can't receive buffer, reseting, waiting buffer..."),
+                                    _ => log::warn!("{dbg}.run | Can't receive required buffer len {}, reseting, waiting new buffer...", fft_buflen)
                                 }
                                 err_limit.reset();
                                 buf.clear();
@@ -458,7 +459,7 @@ impl Service for FftAnalysis {
                             }
                         },
                         _ => {
-                            log::debug!("{dbg}.run | receive error: {:?}", err);
+                            log::warn!("{dbg}.run | receive error: {:?}", err);
                             break;
                         }
                     },
