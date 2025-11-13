@@ -11,6 +11,7 @@ mod ds;
 use eframe::{EventLoopBuilder, UserEvent};
 use sal_core::dbg::Dbg;
 use sal_sync::{services::{Service, Services, conf::{ConfTree, ServicesConf}}, thread_pool::ThreadPool};
+use tracing_subscriber::{filter::{LevelFilter, Targets}, layer::SubscriberExt, util::SubscriberInitExt};
 use std::{
     error::Error, 
     sync::Arc,
@@ -22,12 +23,12 @@ use crate::{
 ///
 /// 
 fn main() -> Result<(), Box<dyn Error>> {
-    env_logger::Builder::new()
-        .filter_level(log::LevelFilter::Debug)
-        .filter(Some("eframe"), log::LevelFilter::Info)
-        .filter(Some("egui"), log::LevelFilter::Info)
-        .filter(Some("egui_plot"), log::LevelFilter::Info)
-        .filter(Some("winit"), log::LevelFilter::Info)
+    let filter = Targets::new()
+        .with_default(LevelFilter::DEBUG)
+        .with_target("winit", LevelFilter::INFO);
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer())
+        .with(filter)
         .init();
     let dbg = Dbg::own("main");
 
