@@ -65,7 +65,7 @@ pub fn main() {
 //     }
 //     files
 // }
-
+#[allow(unused)]
 fn log(m: impl Into<String>) {
     let path = "logs/build.log";
     match fs::OpenOptions::new().create(true).append(true).open(&path) {

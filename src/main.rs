@@ -9,18 +9,11 @@ mod ds;
 
 #[cfg(not(feature = "plot"))]
 use eframe::{EventLoopBuilder, UserEvent};
-use log::{
-    // info,
-    // trace,
-    debug,
-    // warn,
-};
 use sal_core::dbg::Dbg;
 use sal_sync::{services::{Service, Services, conf::{ConfTree, ServicesConf}}, thread_pool::ThreadPool};
 use std::{
     error::Error, 
     sync::Arc,
-    time::Duration, 
 };
 use crate::{
     ds::DsServer, fft::FftAnalysis, networking::{UdpClient, UdpClientConf}, presentation::ui_app::UiApp
@@ -38,22 +31,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     // InputSignal::run(inputSignal.clone())?;
     // debug!("[main] InputSignal ready\n");
 
-
-    // debug!("[main] creating TcpServer...");
-    // let tcpSrv = Arc::new(Mutex::new(
-    //     TcpServer::new(
-    //         "127.0.0.1:5180",
-    //         inputSignal.clone(),
-    //     )
-    // ));
-    // debug!("[main] TcpServer created");
-    // TcpServer::run(tcpSrv)?;
-
-
-
-    debug!("[main] creating DsServer...");
+    log::debug!("[main] creating DsServer...");
     let mut ds_server = DsServer::new();
-    debug!("[main] DsServer created");
+    log::debug!("[main] DsServer created");
     ds_server.run();
 
     let tp = ThreadPool::new(&dbg, Some(8));
