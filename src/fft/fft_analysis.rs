@@ -411,7 +411,7 @@ impl Service for FftAnalysis {
         let handle2 = thread::Builder::new().name("FftAnalysis tread".to_string()).spawn(move || {
             log::debug!("{dbg}.run | Reading events...");
             let mut received = 0;
-            let mut err_limit = ErrorLimit::new(10);
+            let mut err_limit = ErrorLimit::new(30);
             let mut buf = vec![];
             while !(exit.load(Ordering::Acquire)) {
                 match receiver.recv_timeout(RECV_TIMEOUT) {
