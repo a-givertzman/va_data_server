@@ -38,10 +38,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     // InputSignal::run(inputSignal.clone())?;
     // debug!("[main] InputSignal ready\n");
 
-    log::debug!("[main] creating DsServer...");
+    log::debug!("[main] configuring DsServer...");
     let mut ds_server = DsServer::new();
-    log::debug!("[main] DsServer created");
-    ds_server.run();
+    // ds_server.run();
 
     let tp = ThreadPool::new(&dbg, Some(8));
     let services = Arc::new(Services::new(&dbg, ServicesConf::new(
