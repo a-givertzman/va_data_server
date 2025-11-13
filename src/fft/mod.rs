@@ -1,1 +1,3 @@
-pub mod fft_analysis;
+mod fft_analysis;
+
+pub use fft_analysis::*;

@@ -11,7 +11,7 @@ use log::{
     // error, 
 };
 
-use crate::ds::{ds_config::{DsPointConf}, ds_status::DsStatus};
+use crate::ds::{DsPointConf, ds_status::DsStatus};
 
 
 // #[derive(Debug, Clone)]

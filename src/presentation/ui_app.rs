@@ -1,22 +1,16 @@
 use eframe::CreationContext;
 use egui_plot::{Line, Plot, Points};
-use std::{sync::{Arc, Mutex}};
-use egui::{
-    vec2,
-    Color32, Align2, FontFamily, TextStyle, FontId, 
-};
-use crate::{
-    networking::udp_server::UdpServer, 
-    fft::fft_analysis::FftAnalysis,
-};
+use std::sync::{Arc, atomic::Ordering};
+use egui::{vec2, Color32, Align2, FontFamily, TextStyle, FontId};
+use crate::{fft::FftAnalysis, networking::UdpClient};
 
 
 
 pub struct UiApp {
     // pub inputSignal: Arc<Mutex<InputSignal>>,
     // pub analyzeFft: Arc<Mutex<AnalizeFft>>,
-    pub udp_srv: Arc<Mutex<UdpServer>>,
-    pub fft_analysis: Arc<Mutex<FftAnalysis>>,
+    pub udp_client: Arc<UdpClient>,
+    pub fft_analysis: Arc<FftAnalysis>,
     // renderDelay: Duration,
     real_input_min_y: f64,
     real_input_max_y: f64,
@@ -34,14 +28,14 @@ impl UiApp {
         cc: &CreationContext,
         // inputSignal: Arc<Mutex<InputSignal>>, 
         // analyzeFft: Arc<Mutex<AnalizeFft>>,
-        udp_srv: Arc<Mutex<UdpServer>>,
-        fft_analysis: Arc<Mutex<FftAnalysis>>,
+        udp_client: Arc<UdpClient>,
+        fft_analysis: Arc<FftAnalysis>,
         // renderDelay: Duration,
     ) -> Self {
         Self::setup_custom_fonts(&cc.egui_ctx);
         Self::configure_text_styles(&cc.egui_ctx);
         Self {
-            udp_srv,
+            udp_client,
             fft_analysis,
             real_input_min_y: -100.0,
             real_input_max_y: 3100.0,
@@ -110,7 +104,7 @@ impl eframe::App for UiApp {
         let head_hight = 34.0;
         self.events.clear();
         let mut even = false;
-        for [freq, ampl] in self.fft_analysis.lock().unwrap().fftAlarmXy.xy() {
+        for [freq, ampl] in self.fft_analysis.fft_alarm_xy.xy() {
             if even {
                 self.events.push(format!("Частота {:.1} Гц,  амплитуда {:.2} ", freq, ampl))
             }
@@ -143,125 +137,120 @@ impl eframe::App for UiApp {
             .default_size(vec2(0.4 * vp_size.width(), 0.45 * vp_size.height() - head_hight))
             .show(ctx, |ui| {
                 // debug!("[UiApp.update] self.udpSrv.lock...");
-                match self.fft_analysis.lock() {
-                    Ok(mut input_signal) => {
-                        // debug!("[UiApp.update] self.udpSrv.lock ready");
-                        // ui.label(format!(" i: {:?}", inputSignal.i));
-                        ui.horizontal(|ui| {
-                            ui.add_sized(
-                                [200.0, 16.0], 
-                                egui::Label::new(format!("Sampling:  F: {:?} kHz,  T: {:.2} us", input_signal.f * 1.0e-3, input_signal.samplingPeriod * 1.0e6)),
-                            );
-                            ui.separator();
-                            if ui.add_sized([30., 30.], egui::Button::new("\u{e801}")).clicked() {
-                                self.real_input_len += self.real_input_len / 4;
-                                if self.real_input_len > input_signal.xyLen * 4 {
-                                    self.real_input_len = input_signal.xyLen * 4;
-                                }
-                                input_signal.xy.setLen(self.real_input_len);
-                            }
-                            ui.add_sized(
-                                [100.0, 16.0], 
-                                egui::Label::new(format!(" length: {:.4} ns", (self.real_input_len as f64) * input_signal.delta * 1.0e9)),
-                            );
-                            if ui.add_sized([30., 30.], egui::Button::new("\u{e800}")).clicked() {
-                                self.real_input_len -= self.real_input_len / 4;
-                                if self.real_input_len < 10 {
-                                    self.real_input_len = 10;
-                                }
-                                input_signal.xy.setLen(self.real_input_len);
-                            }
-                            ui.separator();
-                            // ui.label(format!(" t: {:?}", inputSignal.t));
-                            // ui.label(format!(" phi: {:?}", inputSignal.phi));
-                            ui.label(format!("max length: {}", input_signal.xy.len()));
-                            ui.separator();
-                            ui.checkbox(&mut self.real_input_autoscale_y, "Autoscale Y");
-                            // ui.label(format!("xyPoints length: {}", inputSig.xyPoints.len()));
-                            ui.separator();
-                            if ui.button("\u{e802}").clicked() {
-                                input_signal.restart();
-                            }
-                            ui.separator();
-                            ui.add_sized(
-                                [50.0, 16.0], 
-                                egui::Label::new(format!("lost: {:?}", input_signal.udpLost)),
-                            );
-                            if ui.button("\u{e803}").clicked() {
-                                input_signal.udpLost = 0.0;
-                                log::debug!("[UiApp.update] real input udpLost clicked");
-                            }
-                        });
-                        ui.separator();
-                        let mut min = format!("{}", self.real_input_min_y);
-                        let mut max = format!("{}", self.real_input_max_y);
-                        let mut len = format!("{}", self.real_input_len);
-                        ui.horizontal(|ui| {
-                            ui.add_sized(
-                                [32.0, 16.0 * 2.0 + 6.0], 
-                                egui::Label::new(format!("↕")), //⇔⇕   ↔
-                            );
-                            ui.separator();
-                            ui.vertical(|ui| {
-                                if ui.add_sized([64.0, 16.0], egui::TextEdit::singleline(&mut max)).changed() {
-                                    if !self.real_input_autoscale_y {
-                                        self.real_input_max_y = match max.parse() {Ok(value) => {value}, Err(_) => {self.real_input_max_y}};
-                                    }
-                                };                          
-                                if ui.add_sized([64.0, 16.0], egui::TextEdit::singleline(&mut min)).changed() {
-                                    if !self.real_input_autoscale_y {
-                                        self.real_input_min_y = match min.parse() {Ok(value) => {value}, Err(_) => {self.real_input_min_y}};
-                                    }
-                                };
-                            });        
-                        });
-                        // ui.horizontal(|ui| {
-                        //     if ui.text_edit_singleline(&mut len).changed() {
-                        //         self.realInputLen = match len.parse() {Ok(value) => {value}, Err(_) => {self.realInputLen}};
-                        //     };
-                        // });
-                        let mut plot = Plot::new("real input");
-                        if !self.real_input_autoscale_y {
-                            plot = plot.include_y(self.real_input_min_y);
-                            plot = plot.include_y(self.real_input_max_y);
+                // debug!("[UiApp.update] self.udpSrv.lock ready");
+                // ui.label(format!(" i: {:?}", inputSignal.i));
+                ui.horizontal(|ui| {
+                    ui.add_sized(
+                        [200.0, 16.0], 
+                        egui::Label::new(
+                            format!("Sampling:  F: {:?} kHz,  T: {:.2} us", self.fft_analysis.f.load() * 1.0e-3, self.fft_analysis.sampling_period.load() * 1.0e6),
+                        ),
+                    );
+                    ui.separator();
+                    if ui.add_sized([30., 30.], egui::Button::new("\u{e801}")).clicked() {
+                        self.real_input_len += self.real_input_len / 4;
+                        if self.real_input_len > self.fft_analysis.xy_len.load(Ordering::Acquire) * 4 {
+                            self.real_input_len = self.fft_analysis.xy_len.load(Ordering::Acquire) * 4;
                         }
-                        // let mut xy = [[0.0; 2]; self.realInputLen];
-                        // if !self.realInputAutoscroll {
-                        //     self.realInputLen = match max.parse() {Ok(value) => {value}, Err(_) => {self.realInputLen}};
-                        //     // plot = plot.include_y(self.realInputLen);
-                        //     let xy = inputSignal.xy.buffer().split_at(self.realInputLen).0.to_vec();
-                        //     plot.show(ui, |plotUi| {
-                        //         plotUi.points(
-                        //             Points::new(
-                        //                 xy
-                        //             ),
-                        //         );
-                        //     });
-                        // }
-                        plot.show(ui, |plot_ui| {
-                            plot_ui.points(
-                                Points::new(
-                                    "input_signal",
-                                    input_signal.xy.xy()
-                                    // ((inputSignal.xy.xy())[0..self.realInputLen]).to_vec()
-                                )
-                                .color(Color32::LIGHT_GREEN)
-                                // .radius(2.0)
-                                .filled(true),
-                            );
-                            plot_ui.line(
-                                Line::new(
-                                    "",
-                                    input_signal.xy.xy()
-                                    // ((inputSignal.xy.xy())[0..self.realInputLen]).to_vec()
-                                ).color(Color32::GRAY),
-                            );                        
-                        });
-                    },
-                    Err(err) => {
-                        log::warn!("[UiApp.update] self.udpSrv.lock error: {:?}", err);
-                    },
-                };
+                        self.fft_analysis.xy.setLen(self.real_input_len);
+                    }
+                    ui.add_sized(
+                        [100.0, 16.0], 
+                        egui::Label::new(format!(" length: {:.4} ns", (self.real_input_len as f64) * self.fft_analysis.delta.load() * 1.0e9)),
+                    );
+                    if ui.add_sized([30., 30.], egui::Button::new("\u{e800}")).clicked() {
+                        self.real_input_len -= self.real_input_len / 4;
+                        if self.real_input_len < 10 {
+                            self.real_input_len = 10;
+                        }
+                        self.fft_analysis.xy.setLen(self.real_input_len);
+                    }
+                    ui.separator();
+                    // ui.label(format!(" t: {:?}", inputSignal.t));
+                    // ui.label(format!(" phi: {:?}", inputSignal.phi));
+                    ui.label(format!("max length: {}", self.fft_analysis.xy.len()));
+                    ui.separator();
+                    ui.checkbox(&mut self.real_input_autoscale_y, "Autoscale Y");
+                    // ui.label(format!("xyPoints length: {}", inputSig.xyPoints.len()));
+                    ui.separator();
+                    if ui.button("\u{e802}").clicked() {
+                        self.fft_analysis.restart();
+                    }
+                    ui.separator();
+                    ui.add_sized(
+                        [50.0, 16.0], 
+                        egui::Label::new(format!("lost: {}", self.fft_analysis.udp_lost)),
+                    );
+                    if ui.button("\u{e803}").clicked() {
+                        self.fft_analysis.udp_lost.store(0.0);
+                        log::debug!("[UiApp.update] real input udpLost clicked");
+                    }
+                });
+                ui.separator();
+                let mut min = format!("{}", self.real_input_min_y);
+                let mut max = format!("{}", self.real_input_max_y);
+                // let mut len = format!("{}", self.real_input_len);
+                ui.horizontal(|ui| {
+                    ui.add_sized(
+                        [32.0, 16.0 * 2.0 + 6.0], 
+                        egui::Label::new(format!("↕")), //⇔⇕   ↔
+                    );
+                    ui.separator();
+                    ui.vertical(|ui| {
+                        if ui.add_sized([64.0, 16.0], egui::TextEdit::singleline(&mut max)).changed() {
+                            if !self.real_input_autoscale_y {
+                                self.real_input_max_y = match max.parse() {Ok(value) => {value}, Err(_) => {self.real_input_max_y}};
+                            }
+                        };                          
+                        if ui.add_sized([64.0, 16.0], egui::TextEdit::singleline(&mut min)).changed() {
+                            if !self.real_input_autoscale_y {
+                                self.real_input_min_y = match min.parse() {Ok(value) => {value}, Err(_) => {self.real_input_min_y}};
+                            }
+                        };
+                    });        
+                });
+                // ui.horizontal(|ui| {
+                //     if ui.text_edit_singleline(&mut len).changed() {
+                //         self.realInputLen = match len.parse() {Ok(value) => {value}, Err(_) => {self.realInputLen}};
+                //     };
+                // });
+                let mut plot = Plot::new("real input");
+                if !self.real_input_autoscale_y {
+                    plot = plot.include_y(self.real_input_min_y);
+                    plot = plot.include_y(self.real_input_max_y);
+                }
+                // let mut xy = [[0.0; 2]; self.realInputLen];
+                // if !self.realInputAutoscroll {
+                //     self.realInputLen = match max.parse() {Ok(value) => {value}, Err(_) => {self.realInputLen}};
+                //     // plot = plot.include_y(self.realInputLen);
+                //     let xy = inputSignal.xy.buffer().split_at(self.realInputLen).0.to_vec();
+                //     plot.show(ui, |plotUi| {
+                //         plotUi.points(
+                //             Points::new(
+                //                 xy
+                //             ),
+                //         );
+                //     });
+                // }
+                plot.show(ui, |plot_ui| {
+                    plot_ui.points(
+                        Points::new(
+                            "input_signal",
+                            self.fft_analysis.xy.xy()
+                            // ((inputSignal.xy.xy())[0..self.realInputLen]).to_vec()
+                        )
+                        .color(Color32::LIGHT_GREEN)
+                        // .radius(2.0)
+                        .filled(true),
+                    );
+                    plot_ui.line(
+                        Line::new(
+                            "",
+                            self.fft_analysis.xy.xy()
+                            // ((inputSignal.xy.xy())[0..self.realInputLen]).to_vec()
+                        ).color(Color32::GRAY),
+                    );                        
+                });
             });
 
         // egui::Window::new("AnalyzeFft input").show(ctx, |ui| {
@@ -284,28 +273,27 @@ impl eframe::App for UiApp {
             .anchor(Align2::LEFT_TOP, [0.0, 0.0])
             .default_size(vec2(0.6 * vp_size.width(), 1.0 * vp_size.height() - head_hight))
             .show(ctx, |ui| {
-                let analyze_fft = self.fft_analysis.lock().unwrap();
                 // ui.label(format!("new fft: '{}'", 0));
                 // let points = analyzeFft.fftXy.clone();
                 ui.horizontal(|ui| {
                     ui.add_sized(
                         [200.0, 16.0], 
-                        egui::Label::new(format!("fftComplex length: {:?}", analyze_fft.fftComplex.len())),
+                        egui::Label::new(format!("fftComplex length: {:?}", self.fft_analysis.fft_complex.read().len())),
                     );
                     ui.separator();
                     ui.add_sized(
                         [200.0, 16.0], 
-                        egui::Label::new(format!("fftPoints length: {:?}", analyze_fft.fftXy.len())),
+                        egui::Label::new(format!("fftPoints length: {:?}", self.fft_analysis.fft_xy.len())),
                     );
                     ui.separator();
                     ui.add_sized(
                         [250.0, 16.0], 
-                        egui::Label::new(format!("Drive freq: {:.4} об/мин ({:.2} Гц)", analyze_fft.baseFreq, analyze_fft.baseFreq / 60.0)),
+                        egui::Label::new(format!("Drive freq: {:.4} об/мин ({:.2} Гц)", self.fft_analysis.base_freq, self.fft_analysis.base_freq.load() / 60.0)),
                     );
                     ui.separator();
                     ui.add_sized(
                         [250.0, 16.0], 
-                        egui::Label::new(format!("freq offset: {:.4} об/мин ({:.2} Гц)", analyze_fft.offsetFreq, analyze_fft.offsetFreq / 60.0)),
+                        egui::Label::new(format!("freq offset: {:.4} об/мин ({:.2} Гц)", self.fft_analysis.offset_freq, self.fft_analysis.offset_freq.load() / 60.0)),
                     );
                     // ui.separator();
                     ui.separator();
@@ -361,18 +349,18 @@ impl eframe::App for UiApp {
                     plot_ui.line(
                         Line::new(
                             "fftXy",
-                            analyze_fft.fftXy.xy(),
+                            self.fft_analysis.fft_xy.xy(),
                         ).color(Color32::LIGHT_GREEN),
                     );
                     plot_ui.line(
                         Line::new(
                             "limitationsXy",
-                            analyze_fft.limitationsXy.xy(),
+                            self.fft_analysis.limitations_xy.xy(),
                         ).color(Color32::YELLOW),
                     );
                     let mut even = false;
                     let mut series = vec![];
-                    for item in analyze_fft.fftAlarmXy.xy() {
+                    for item in self.fft_analysis.fft_alarm_xy.xy() {
                         series.push(item);
                         if even {
                             plot_ui.line(
@@ -389,7 +377,7 @@ impl eframe::App for UiApp {
                         plot_ui.points(
                             Points::new(
                                 "fftXyDif",
-                                analyze_fft.fftXyDif.xy()
+                                self.fft_analysis.fft_xy_dif.xy()
                             ).color(Color32::DARK_RED),
                         );
                     }

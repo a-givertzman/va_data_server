@@ -15,26 +15,22 @@ use log::{
     debug,
     // warn,
 };
+use sal_core::dbg::Dbg;
+use sal_sync::{services::{Service, Services, conf::{ConfTree, ServicesConf}}, thread_pool::ThreadPool};
 use std::{
     error::Error, 
-    sync::{
-        Arc,
-        Mutex,
-    }, 
+    sync::Arc,
     time::Duration, 
 };
 use crate::{
-    presentation::ui_app::UiApp,
-    networking::udp_server::UdpServer, 
-    fft::fft_analysis::FftAnalysis,
-    ds::ds_server::DsServer,
+    ds::DsServer, fft::FftAnalysis, networking::{UdpClient, UdpClientConf}, presentation::ui_app::UiApp
 };
 
 ///
 /// 
 fn main() -> Result<(), Box<dyn Error>> {
     env_logger::Builder::new().filter_level(log::LevelFilter::Debug).init();
-
+    let dbg = Dbg::own("main");
 
     // const N: usize = 32_768;
     // const sampleRate: f32 = 2_048.0000;
@@ -60,44 +56,35 @@ fn main() -> Result<(), Box<dyn Error>> {
     debug!("[main] DsServer created");
     ds_server.run();
 
+    let tp = ThreadPool::new(&dbg, Some(8));
+    let services = Arc::new(Services::new(&dbg, ServicesConf::new(
+        &dbg, 
+        ConfTree::new_root(serde_yaml::from_str(r#"
+            retain:
+                path: assets/testing/retain/
+                point:
+                    path: point/id.json
+        "#).unwrap()),
+    ), Some(tp.scheduler())));
 
-    let reconnect_delay = Duration::from_secs(3);
-    let local_addr = "192.168.100.151:15180";
-    let remote_addr = "192.168.100.173:15180";
-    debug!("[main] creating UdpServer...");
-    let udp_srv = Arc::new(Mutex::new(
-        UdpServer::new(
-            local_addr,
-            remote_addr,
-            Some(reconnect_delay),
-        )
+    log::debug!("[main] configuring UdpClient...");
+    let path = "./udp-client.yaml";
+    let conf = UdpClientConf::read(&dbg, path);
+    let udp_client = Arc::new(UdpClient::new(conf, services.clone(), tp.scheduler()));
+    services.insert(udp_client.clone());
+
+    log::debug!("[main] creating FftAnalysis...");
+    let fft_analysis = Arc::new(FftAnalysis::new(
+        &dbg,
+        320_000.0,
+        320_000,
+        udp_client.clone(),
+        ds_server,
+        services.clone(),
     ));
-    debug!("[main] UdpServer created");
-    UdpServer::run(udp_srv.clone());
-
-
-    debug!("[main] creating FftAnalysis...");
-    let fft_analysis = Arc::new(Mutex::new(
-        FftAnalysis::new(
-            320_000.0,
-            320_000,
-            udp_srv.clone().lock().unwrap().receiver.clone(),
-            udp_srv.clone(),
-            ds_server
-        )
-    ));
-    debug!("[main] FftAnalysis created");
-    FftAnalysis::run(fft_analysis.clone());
-
-
-    // let analyzeFft = Arc::new(Mutex::new(
-    //     AnalizeFft::new(
-    //         inputSignal.clone(),
-    //         sampleRate, 
-    //         N,
-    //     )
-    // ));
-    // AnalizeFft::run(analyzeFft.clone())?;
+    log::debug!("[main] FftAnalysis created");
+    fft_analysis.run()?;
+    services.insert(fft_analysis.clone());
 
     eframe::run_native(
         "Rpi-FFT-App", 
@@ -110,7 +97,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         Box::new(|cc| Ok(Box::new(
             UiApp::new(
                 cc,
-                udp_srv,
+                udp_client,
                 fft_analysis,
             ),
         )))    
