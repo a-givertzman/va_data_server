@@ -1,6 +1,6 @@
 use num::{Complex, complex::ComplexFloat};
 use rustfft::{FftPlanner, Fft};
-use sal_core::{dbg::Dbg, error::Error};
+use sal_core::{dbg::Dbg, error::{Error, ErrorLimit}};
 use sal_sync::{services::{RECV_TIMEOUT, Service, Services, entity::{Name, Object, Point}}, sync::{Handles, Owner, RwLock, channel::{self, Receiver, RecvTimeoutError, Sender}}};
 use std::{
     f64::consts::PI, fmt::{Debug, Display}, sync::{Arc, atomic::{AtomicBool, AtomicU8, AtomicUsize, Ordering}}, thread::{self}, time::Duration
@@ -403,36 +403,54 @@ impl Service for FftAnalysis {
         let delta = self.delta.clone();
         let exit = self.exit.clone();
         let handle2 = thread::Builder::new().name("FftAnalysis tread".to_string()).spawn(move || {
+            let mut received = 0;
             while !(exit.load(Ordering::Acquire)) {
                 // let mut buf = Some(Arc::new([0u8; UDP_BUF_SIZE]));
+                let mut err_limit = ErrorLimit::new(10);
                 let mut buf = vec![];
                 match receiver.recv_timeout(RECV_TIMEOUT) {
                     Ok(event) => {
                         let val = event.to_int().as_int().value;
                         buf.push(val as u16);
                         // log::debug!("{} received buf {:?}", logLoc, buf);
-                        Self::enqueue(
-                            &dbg,
-                            freq.load(),
-                            &fft,
-                            fft_buflen,
-                            &mut complex.write(),
-                            &complex0.read(),
-                            &mut fft_complex.write(),
-                            fft_xy_len,
-                            &fft_xy,
-                            &fft_xy_dif,
-                            &fft_alarm_xy,
-                            &envelope_xy,
-                            &limitations_xy,
-                            &xy,
-                            &t,
-                            &delta,
-                            &buf,
-                        );
+                        if buf.len() == fft_buflen {
+                            Self::enqueue(
+                                &dbg,
+                                freq.load(),
+                                &fft,
+                                fft_buflen,
+                                &mut complex.write(),
+                                &complex0.read(),
+                                &mut fft_complex.write(),
+                                fft_xy_len,
+                                &fft_xy,
+                                &fft_xy_dif,
+                                &fft_alarm_xy,
+                                &envelope_xy,
+                                &limitations_xy,
+                                &xy,
+                                &t,
+                                &delta,
+                                &buf,
+                            );
+                        }
                     }
                     Err(err) => match err {
-                        RecvTimeoutError::Timeout => {},
+                        RecvTimeoutError::Timeout => {
+                            if buf.len() != received {
+                                log::debug!("{dbg}.run | Wrong buffer len {}, ecpected {}", buf.len(), fft_buflen);
+                                received = buf.len();
+                            }
+                            if let Err(_) = err_limit.add() {
+                                match buf.len() {
+                                    0 => log::debug!("{dbg}.run | Can't receive buffer, reseting, waiting buffer..."),
+                                    _ => log::debug!("{dbg}.run | Can't receive required buffer len {}, reseting, waiting new buffer...", fft_buflen)
+                                }
+                                err_limit.reset();
+                                buf.clear();
+                                received = 0;
+                            }
+                        },
                         _ => {
                             log::debug!("{dbg}.run | receive error: {:?}", err);
                             break;
