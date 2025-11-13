@@ -411,12 +411,12 @@ impl Service for FftAnalysis {
         let handle2 = thread::Builder::new().name("FftAnalysis tread".to_string()).spawn(move || {
             log::debug!("{dbg}.run | Reading events...");
             let mut received = 0;
+            let mut err_limit = ErrorLimit::new(10);
+            let mut buf = vec![];
             while !(exit.load(Ordering::Acquire)) {
-                // let mut buf = Some(Arc::new([0u8; UDP_BUF_SIZE]));
-                let mut err_limit = ErrorLimit::new(3);
-                let mut buf = vec![];
                 match receiver.recv_timeout(RECV_TIMEOUT) {
                     Ok(event) => {
+                        log::debug!("{dbg}.run | Event: {:?}", event);
                         let val = event.to_int().as_int().value;
                         buf.push(val as u16);
                         // log::debug!("{} received buf {:?}", logLoc, buf);
@@ -440,7 +440,10 @@ impl Service for FftAnalysis {
                                 &delta,
                                 &buf,
                             );
+                            buf.clear();
+                            received = 0;
                         }
+                        err_limit.reset();
                     }
                     Err(err) => match err {
                         RecvTimeoutError::Timeout => {
