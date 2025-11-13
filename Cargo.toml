@@ -53,9 +53,9 @@ once_cell = "~1.21"
 
 #
 # Ui
-egui = "~0.32"
-egui_plot = "~0.33"
-eframe = "~0.32"
+egui = "~0.33"
+egui_plot = "~0.34"
+eframe = "~0.33"
 
 # snap7 = "~0.0.1"
 snap7-sys = "~0.1.5"

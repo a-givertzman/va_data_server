@@ -22,7 +22,13 @@ use crate::{
 ///
 /// 
 fn main() -> Result<(), Box<dyn Error>> {
-    env_logger::Builder::new().filter_level(log::LevelFilter::Debug).init();
+    env_logger::Builder::new()
+        .filter_level(log::LevelFilter::Debug)
+        .filter(Some("eframe"), log::LevelFilter::Info)
+        .filter(Some("egui"), log::LevelFilter::Info)
+        .filter(Some("egui_plot"), log::LevelFilter::Info)
+        .filter(Some("winit"), log::LevelFilter::Info)
+        .init();
     let dbg = Dbg::own("main");
 
     // const N: usize = 32_768;

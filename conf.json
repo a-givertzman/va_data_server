@@ -28,7 +28,7 @@
                                 "offset": 4
                             },
                             "Drive.err": {
-                                "dataType": "Reals",
+                                "dataType": "Real",
                                 "comment": "Drive.Counter",
                                 "offset": 4
                             }
