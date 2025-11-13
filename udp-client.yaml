@@ -2,7 +2,7 @@ service UdpClient:
     description: 'UDP-IED-01.01'
     subscribe: MultiQueue
     # send-to: /test/MultiQueue.in-queue
-    send-to: /test/TaskTestReceiver.in-queue
+    send-to: /main/FftAnalysis.in-queue
     cycle: 1 ms                         # operating cycle time of the device
     reconnect: 100 ms                  # reconnect timeout when connection is lost
     protocol: 'udp-raw'

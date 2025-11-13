@@ -60,7 +60,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let udp_client = Arc::new(UdpClient::new(conf, services.clone(), tp.scheduler()));
     services.insert(udp_client.clone());
 
-    log::debug!("[main] creating FftAnalysis...");
+    log::debug!("[main] configuring FftAnalysis...");
     let fft_analysis = Arc::new(FftAnalysis::new(
         &dbg,
         320_000.0,
@@ -69,9 +69,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         ds_server,
         services.clone(),
     ));
-    log::debug!("[main] FftAnalysis created");
     fft_analysis.run()?;
     services.insert(fft_analysis.clone());
+
+    udp_client.run()?;
 
     eframe::run_native(
         "Rpi-FFT-App", 

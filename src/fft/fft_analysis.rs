@@ -31,7 +31,7 @@ pub struct FftAnalysis {
     udp_client: Arc<UdpClient>,
     ds_server: DsServer,
     services: Arc<Services>,
-    send: Owner<Sender<Point>>,
+    send: Sender<Point>,
     recv: Owner<Receiver<Point>>,
     pub delta: Arc<AtomicFloat<f64>>,
     pub f: Arc<AtomicFloat<f32>>,
@@ -89,7 +89,7 @@ impl FftAnalysis {
             udp_client,
             ds_server,
             services,
-            send: Owner::new(send),
+            send,
             recv: Owner::new(recv),
             delta: Arc::new(AtomicFloat::new(delta)),
             f: Arc::new(AtomicFloat::new(f)),
@@ -346,7 +346,13 @@ impl std::fmt::Debug for FftAnalysis {
 //
 //
 impl Service for FftAnalysis {
-    ///
+    //
+    //
+    fn get_link(&self, _: &str) -> Sender<Point> {
+        self.send.clone()
+    }
+    //
+    //
     fn run(&self) -> Result<(), Error> {
         let dbg = self.dbg.clone();
         log::debug!("{dbg}.run | starting...");
