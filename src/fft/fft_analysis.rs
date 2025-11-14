@@ -41,7 +41,7 @@ pub struct FftAnalysis {
     pub fft_buflen: usize,
     pub fft_complex: Arc<RwLock<Vec<Complex<f64>>>>,
     pub xy: Arc<PlotData>,
-    fft: Arc<dyn Fft<f64>>,
+    fft: Arc<dyn Fft<f64> + 'static>,
     pub fft_xy_len: usize,
     pub fft_xy: Arc<PlotData>,
     pub fft_alarm_xy: Arc<PlotData>,
@@ -397,24 +397,31 @@ impl Service for FftAnalysis {
                                 &delta,
                                 &buf,
                             );
-                            // if complex.is_full() {
-                            //     std::thread::spawn(|| {
-                            //         Self::fft_process(
-                            //             fft,
-                            //             fft_buflen,
-                            //             complex,
-                            //             fft_complex,
-                            //             fft_xy_len,
-                            //             fft_xy,
-                            //             fft_xy_dif,
-                            //             fft_alarm_xy,
-                            //             envelope_xy,
-                            //             limitations_xy,
-                            //         );
-                            //         complex.clear();
-                            //     });
-                            // }
-
+                            if complex.read().is_full() {
+                                let fft = fft.clone();
+                                let complex = complex.clone();
+                                let fft_complex = fft_complex.clone();
+                                let fft_xy = fft_xy.clone();
+                                let fft_xy_dif = fft_xy_dif.clone();
+                                let fft_alarm_xy = fft_alarm_xy.clone();
+                                let envelope_xy = envelope_xy.clone();
+                                let limitations_xy = limitations_xy.clone();
+                                std::thread::spawn(move || {
+                                    Self::fft_process(
+                                        &fft,
+                                        fft_buflen,
+                                        &complex.read(),
+                                        &mut fft_complex.write(),
+                                        fft_xy_len,
+                                        &fft_xy,
+                                        &fft_xy_dif,
+                                        &fft_alarm_xy,
+                                        &envelope_xy,
+                                        &limitations_xy,
+                                    );
+                                    complex.write().clear();
+                                });
+                            }
                             buf.clear();
                         }
                         err_limit.reset();
