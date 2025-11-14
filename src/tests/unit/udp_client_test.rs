@@ -4,7 +4,7 @@ use std::{sync::{Arc, Once}, thread, time::{Duration, Instant}};
 use rand::Rng;
 use sal_sync::{services::{Service, Services, conf::{ConfTree, ServicesConf}, entity::{Name, Point}}, thread_pool::ThreadPool};
 use testing::stuff::max_test_duration::TestDuration;
-use debugging::session::debug_session::{DebugSession, LogLevel, Backtrace};
+use debugging::session::debug_session::{DebugSession, LogLevel};
 use crate::networking::{UdpClient, UdpClientConf, FakeUdpServer, FakeUdpServerConfig};
 ///
 ///
@@ -25,7 +25,7 @@ fn init_each() -> () {}
 #[test]
 #[ignore = "TODO: Receiver is switched of, to be implemented to activate this test"]
 fn random_i16() {
-    DebugSession::init(LogLevel::Debug, Backtrace::Short);
+    DebugSession::new().filter(LogLevel::Debug).init();
     init_once();
     init_each();
     log::debug!("");

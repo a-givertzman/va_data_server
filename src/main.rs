@@ -9,11 +9,11 @@ mod ds;
 #[cfg(test)]
 mod tests;
 
+use debugging::session::debug_session::{DebugSession, LogLevel};
 // #[cfg(not(feature = "plot"))]
 // use eframe::{EventLoopBuilder, UserEvent};
 use sal_core::dbg::Dbg;
 use sal_sync::{services::{Service, Services, conf::{ConfTree, ServicesConf}, entity::Name}, thread_pool::ThreadPool};
-use tracing_subscriber::{filter::{LevelFilter, Targets}, layer::SubscriberExt, util::SubscriberInitExt};
 use std::{error::Error, f64::consts::PI, sync::Arc};
 use crate::{
     ds::DsServer, fft::FftAnalysis, networking::{FakeUdpServer, FakeUdpServerConfig, UdpClient, UdpClientConf}, presentation::ui_app::UiApp
@@ -22,13 +22,14 @@ use crate::{
 ///
 /// 
 fn main() -> Result<(), Box<dyn Error>> {
-    let filter = Targets::new()
-        .with_default(LevelFilter::DEBUG)
-        .with_target("winit", LevelFilter::INFO);
-    tracing_subscriber::registry()
-        .with(tracing_subscriber::fmt::layer())
-        .with(filter)
-        .init();
+    DebugSession::new().filter(LogLevel::Debug).module("winit", LogLevel::Info).init();
+    // let filter = Targets::new()
+    //     .with_default(LevelFilter::DEBUG)
+    //     .with_target("winit", LevelFilter::INFO);
+    // tracing_subscriber::registry()
+    //     .with(tracing_subscriber::fmt::layer())
+    //     .with(filter)
+    //     .init();
     let dbg = Dbg::own("main");
     //
     // ======================== Configure input signal here ========================
