@@ -25,7 +25,7 @@ pub struct FakeUdpServerConfig {
     /// Maximum Transmission Unit, default 1500, [Resolve IPv4 Fragmentation, MTU...](https://www.cisco.com/c/en/us/support/docs/ip/generic-routing-encapsulation-gre/25885-pmtud-ipfrag.html)
     pub mtu: usize,
     /// Sampling freq, Hz
-    pub freq: usize,
+    pub sampl_freq: usize,
 }
 ///
 /// Do something ...
@@ -108,7 +108,7 @@ impl Service for FakeUdpServer {
         log::info!("{}.run | Starting...", self.dbg);
         let dbg = self.dbg.clone();
         let conf = self.conf.clone();
-        let period = 1.0 / conf.freq as f64;
+        let period = 1.0 / conf.sampl_freq as f64;
         let mut cycle = ServiceCycle::new(&dbg, Duration::from_secs_f64(period * conf.count as f64));
         let value = self.value.clone();
         let exit = self.exit.clone();
@@ -174,7 +174,6 @@ impl Service for FakeUdpServer {
                                                         notify.add(State::UdpSendError, format!("{dbg}.run | Socket send error: {:#?}", err))                                                        
                                                     }
                                                 }
-                                                log::info!("{dbg}.run | Sent: {} values of <u16>", conf.count);
                                                 if !cycle.interval().is_zero() {
                                                     cycle.wait();
                                                 }

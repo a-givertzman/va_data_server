@@ -30,7 +30,6 @@ pub struct FftAnalysis {
     name: Name,
     udp_client: Arc<UdpClient>,
     ds_server: DsServer,
-    services: Arc<Services>,
     send: Sender<Point>,
     recv: Owner<Receiver<Point>>,
     pub delta: Arc<AtomicFloat<f64>>,
@@ -41,7 +40,6 @@ pub struct FftAnalysis {
     pub complex: Arc<RwLock<CircularQueue<Complex<f64>>>>,
     pub fft_buflen: usize,
     pub fft_complex: Arc<RwLock<Vec<Complex<f64>>>>,
-    pub xy_len: AtomicUsize,
     pub xy: Arc<PlotData>,
     fft: Arc<dyn Fft<f64>>,
     pub fft_xy_len: usize,
@@ -67,7 +65,6 @@ impl FftAnalysis {
         fft_buflen: usize,
         udp_client: Arc<UdpClient>,
         ds_server: DsServer,
-        services: Arc<Services>,
     ) -> Self {
         let parent = parent.into();
         let sampling_period = 1.0 / (f as f64);
@@ -88,7 +85,6 @@ impl FftAnalysis {
             name: Name::new(&parent, "FftAnalysis"),
             udp_client,
             ds_server,
-            services,
             send,
             recv: Owner::new(recv),
             delta: Arc::new(AtomicFloat::new(delta)),
@@ -99,7 +95,6 @@ impl FftAnalysis {
             complex: Arc::new(RwLock::new(CircularQueue::with_capacity_fill(fft_buflen, &mut vec![Complex{re: 0.0, im: 0.0}; fft_buflen]))),
             fft_buflen,
             fft_complex: Arc::new(RwLock::new(vec![Complex{re: 0.0, im: 0.0}; fft_buflen])),
-            xy_len: AtomicUsize::new(xy_len),
             xy: Arc::new(PlotData::new(xy_len)),
             fft: planner.plan_fft_forward(fft_buflen),
             fft_xy_len,
@@ -382,7 +377,6 @@ impl Service for FftAnalysis {
         let exit = self.exit.clone();
         let handle2 = thread::Builder::new().name("FftAnalysis tread".to_string()).spawn(move || {
             log::debug!("{dbg}.run | Reading events...");
-            let mut received = 0;
             let mut err_limit = ErrorLimit::new(30);
             let mut buf = vec![];
             while !(exit.load(Ordering::Acquire)) {
@@ -392,8 +386,8 @@ impl Service for FftAnalysis {
                         let val = event.to_int().as_int().value;
                         buf.push(val as u16);
                         // log::debug!("{} received buf {:?}", logLoc, buf);
-                        if buf.len() == fft_buflen {
-                            log::debug!("{dbg}.run | Buffer of {} values received", buf.len());
+                        if buf.len() >= xy.len() {
+                            // log::debug!("{dbg}.run | {} values received", buf.len());
                             Self::enqueue(
                                 &dbg,
                                 &mut complex.write(),
@@ -422,24 +416,18 @@ impl Service for FftAnalysis {
                             // }
 
                             buf.clear();
-                            received = 0;
                         }
                         err_limit.reset();
                     }
                     Err(err) => match err {
                         RecvTimeoutError::Timeout => {
-                            if buf.len() != received {
-                                log::warn!("{dbg}.run | Wrong buffer len {}, ecpected {}", buf.len(), fft_buflen);
-                                received = buf.len();
-                            }
                             if let Err(_) = err_limit.add() {
                                 match buf.len() {
-                                    0 => log::warn!("{dbg}.run | Can't receive buffer, reseting, waiting buffer..."),
-                                    _ => log::warn!("{dbg}.run | Can't receive required buffer len {}, reseting, waiting new buffer...", fft_buflen)
+                                    0 => log::warn!("{dbg}.run | Can't receive values"),
+                                    _ => log::warn!("{dbg}.run | Receiving resetarted because of long timeout")
                                 }
                                 err_limit.reset();
                                 buf.clear();
-                                received = 0;
                             }
                         },
                         _ => {

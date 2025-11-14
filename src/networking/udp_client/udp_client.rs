@@ -123,7 +123,7 @@ impl UdpClient {
                 let count = u32::from_be_bytes([c1, c2, c3, c4]) as usize;
                 match InputType::try_from(typ) {
                     Ok(typ) => {
-                        log::debug!("{dbg}.parse | addr: {}, count: {} values of type {}", addr, count, typ);
+                        // log::debug!("{dbg}.parse | addr: {}, count: {} values of type {}", addr, count, typ);
                         // log::debug!("{dbg}.parse | addr: {} type: {} count: {}  |  {:?}", addr, typ, count, &buf[UdpClient::HEAD_LEN..(if buf.len() < 10 {buf.len()} else {10})]);
                         let len = count * typ.size();
                         match buf.get(UdpClient::HEAD_LEN..(UdpClient::HEAD_LEN + len)) {

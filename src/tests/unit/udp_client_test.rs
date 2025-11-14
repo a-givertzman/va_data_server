@@ -73,7 +73,7 @@ fn random_i16() {
             channel: 0,
             count: 512,
             mtu: 1500,
-            freq,
+            sampl_freq: freq,
         },
         services.clone(),
         move |_| values.next(),

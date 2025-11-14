@@ -29,17 +29,18 @@ impl UiApp {
         // inputSignal: Arc<Mutex<InputSignal>>, 
         // analyzeFft: Arc<Mutex<AnalizeFft>>,
         udp_client: Arc<UdpClient>,
-        fft_analysis: Arc<FftAnalysis>,
+        fft: Arc<FftAnalysis>,
         // renderDelay: Duration,
     ) -> Self {
+        let fft_xy_len = fft.xy.len();
         Self::setup_custom_fonts(&cc.egui_ctx);
         Self::configure_text_styles(&cc.egui_ctx);
         Self {
             udp_client,
-            fft: fft_analysis,
+            fft,
             real_input_min_y: -100.0,
             real_input_max_y: 3100.0,
-            real_input_len: 1024,
+            real_input_len: fft_xy_len,
             // realInputAutoscroll: true,
             real_input_autoscale_y: false,
             fft_min_y: -10.0,
@@ -106,7 +107,9 @@ impl eframe::App for UiApp {
         let mut even = false;
         for [freq, ampl] in self.fft.fft_alarm_xy.xy() {
             if even {
-                self.events.push(format!("Частота {:.1} Гц,  амплитуда {:.2} ", freq, ampl))
+                if freq > 0.0 {
+                    self.events.push(format!("Частота {:.1} Гц,  амплитуда {:.2} ", freq, ampl))
+                }
             }
             even = !even;
         }
@@ -149,8 +152,8 @@ impl eframe::App for UiApp {
                     ui.separator();
                     if ui.add_sized([30., 30.], egui::Button::new("\u{e801}")).clicked() {
                         self.real_input_len += self.real_input_len / 4;
-                        if self.real_input_len > self.fft.xy_len.load(Ordering::Acquire) * 4 {
-                            self.real_input_len = self.fft.xy_len.load(Ordering::Acquire) * 4;
+                        if self.real_input_len > self.fft.fft_buflen {
+                            self.real_input_len = self.fft.fft_buflen;
                         }
                         self.fft.xy.setLen(self.real_input_len);
                     }

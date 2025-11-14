@@ -32,15 +32,23 @@ fn main() -> Result<(), Box<dyn Error>> {
     let dbg = Dbg::own("main");
     //
     // ======================== Configure input signal here ========================
-    let freq = 320_000;             // Frequency of the test signal, Hz
-    let amp = 1200.0;                 // Amplitude of the test signal
+    let freq = 4_000;                     // Frequency of the test signal, Hz
+    let amp = 2400.0;                       // Amplitude of the test signal
     let ω = 2.0 * PI * freq as f64;   // Angular frequency of the test signal, rad/s
-    let fft_buflen = 320_000;       // FFT calculation window
-    let udp_len = 512;              // Values <u16> in the DATA field of the single UDP message, not bytes
+    // ===================== Configure Sampling & FFT analizer =====================
+    let sampl_freq = 320_000;               // Sampling Frequency of the ADC, Hz
+    let fft_buflen = 320_000;             // FFT calculation window
+    let udp_len = 512;                    // Values <u16> in the DATA field of the single UDP message, not bytes
     // =============================================================================
-    log::info!("{dbg} |         Frequency: {} Hz", freq);
-    log::info!("{dbg} | Angular frequency: {} rad/sec", ω);
-    log::info!("{dbg} |        Buf length: {} values of U16", fft_buflen);
+    log::info!("{dbg} | Test signal:");
+    log::info!("{dbg} |             Frequency: {} Hz", freq);
+    log::info!("{dbg} |     Angular frequency: {} rad/sec", ω);
+    log::info!("{dbg} |             Amplitude: {}", amp);
+    log::info!("{dbg} | ------------------------------------");
+    log::info!("{dbg} | Sampling and FFT:");
+    log::info!("{dbg} |    Sampling Frequency: {} Hz", sampl_freq);
+    log::info!("{dbg} |    UDP Buf length: {} values of U16", fft_buflen);
+    log::info!("{dbg} | ------------------------------------");
     log::debug!("{dbg} | Configuring DsServer...");
     let ds_server = DsServer::new();
     // ds_server.run();
@@ -66,11 +74,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     log::debug!("{dbg} configuring FftAnalysis...");
     let fft_analysis = Arc::new(FftAnalysis::new(
         &dbg,
-        freq as f32,
+        sampl_freq as f32,
         fft_buflen,
         udp_client.clone(),
         ds_server,
-        services.clone(),
     ));
     fft_analysis.run()?;
     services.insert(fft_analysis.clone());
@@ -84,11 +91,11 @@ fn main() -> Result<(), Box<dyn Error>> {
             channel: 0,
             count: udp_len,
             mtu: 1500,
-            freq,
+            sampl_freq,
         },
         services.clone(),
         move |time| {
-            let val = (ω * time).sin() * amp;
+            let val = ((ω * time).sin() + 1.1) * amp;
             // log::debug!("main.run | t: {},  val: {}", time, val);
             Some(val.round() as u16)
         }
