@@ -3457,6 +3457,7 @@ dependencies = [
  "chrono",
  "concat-string",
  "concurrent-queue",
+ "debugging",
  "eframe",
  "egui",
  "egui_plot",
@@ -3470,6 +3471,7 @@ dependencies = [
  "num",
  "once_cell",
  "parking_lot",
+ "rand 0.9.2",
  "regex",
  "ringbuf",
  "rustfft",
@@ -3480,6 +3482,7 @@ dependencies = [
  "serde_with",
  "serde_yaml",
  "snap7-sys",
+ "testing",
  "tracing-subscriber",
 ]
 
