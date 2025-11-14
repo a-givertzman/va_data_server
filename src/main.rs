@@ -32,18 +32,23 @@ fn main() -> Result<(), Box<dyn Error>> {
     let dbg = Dbg::own("main");
     //
     // ======================== Configure input signal here ========================
-    let freq = 4_000;                     // Frequency of the test signal, Hz
-    let amp = 2400.0;                       // Amplitude of the test signal
-    let ω = 2.0 * PI * freq as f64;   // Angular frequency of the test signal, rad/s
+    // Frequency of the test signal, Hz
+    let freq = [1000, 4000, 12000];
+    // Amplitude of the test signal
+    let amp = [300.0, 2048.0, 1024.0];
+    // Angular frequency of the test signal, rad/s
+    let ω_amp: Vec<(f64, f64)> = freq.iter().enumerate().map(|(i, f)| (2.0 * PI * *f as f64, amp[i] * 0.5)).collect();
     // ===================== Configure Sampling & FFT analizer =====================
-    let sampl_freq = 320_000;               // Sampling Frequency of the ADC, Hz
+    let sampl_freq = 320_000;             // Sampling Frequency of the ADC, Hz
     let fft_buflen = 320_000;             // FFT calculation window
     let udp_len = 512;                    // Values <u16> in the DATA field of the single UDP message, not bytes
     // =============================================================================
     log::info!("{dbg} | Test signal:");
-    log::info!("{dbg} |             Frequency: {} Hz", freq);
-    log::info!("{dbg} |     Angular frequency: {} rad/sec", ω);
-    log::info!("{dbg} |             Amplitude: {}", amp);
+    for (i, f) in freq.iter().enumerate() {
+        log::info!("{dbg} |             Frequency[{i}]: {} Hz", f);
+        log::info!("{dbg} |     Angular frequency[{i}]: {} rad/sec", ω_amp[i].0);
+        log::info!("{dbg} |             Amplitude[{i}]: {}", amp[i]);
+    }
     log::info!("{dbg} | ------------------------------------");
     log::info!("{dbg} | Sampling and FFT:");
     log::info!("{dbg} |    Sampling Frequency: {} Hz", sampl_freq);
@@ -95,7 +100,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         },
         services.clone(),
         move |time| {
-            let val = ((ω * time).sin() + 1.1) * amp;
+            let val = ω_amp.iter().fold(0.0, |acc, (ω, amp)| {
+                acc + ((ω * time).sin() + 1.0) * amp
+            });
             // log::debug!("main.run | t: {},  val: {}", time, val);
             Some(val.round() as u16)
         }
