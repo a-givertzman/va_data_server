@@ -221,7 +221,7 @@ impl FftAnalysis {
         fft_xy.push([0.0, 0.0]);
         for i in 1..fft_xy_len {
             x = i as f64;
-            y = fft_complex[i].abs() * factor;
+            y = fft_complex.get(i).unwrap_or(&Complex::new(0.0, 0.0)).abs() * factor;
             // y = ((self.fftComplex[i].re.powi(2) + self.fftComplex[i].im.powi(2)) * factor) as f64;
             if Self::fft_point_overflowed(x, y, limitations_xy) {
                 fft_alarm_xy.push([x, 0.0]);

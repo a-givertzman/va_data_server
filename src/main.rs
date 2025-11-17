@@ -22,7 +22,12 @@ use crate::{
 ///
 /// 
 fn main() -> Result<(), Box<dyn Error>> {
-    DebugSession::new().filter(LogLevel::Debug).module("winit", LogLevel::Info).init();
+    DebugSession::new()
+        .filter(LogLevel::Debug)
+        .module("eframe", LogLevel::Info)
+        .module("winit", LogLevel::Info)
+        .module("sal_sync::thread_pool", LogLevel::Info)
+        .init();
     // let filter = Targets::new()
     //     .with_default(LevelFilter::DEBUG)
     //     .with_target("winit", LevelFilter::INFO);
