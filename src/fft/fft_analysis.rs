@@ -52,6 +52,7 @@ pub struct FftAnalysis {
     pub offset_freq: Arc<AtomicFloat<f64>>,
     pub udp_index: AtomicU8,
     pub udp_lost: Arc<AtomicFloat<f64>>,
+    pub channel: Arc<AtomicUsize>,
     handles: Handles<()>,
     exit: Arc<AtomicBool>,
     dbg: Dbg,
@@ -78,7 +79,7 @@ impl FftAnalysis {
             }
         }).collect();
         let xy_len = 2048;
-        let fft_xy_len = fft_buflen / 10;
+        let fft_xy_len = fft_buflen / 2;
         let mut planner = FftPlanner::new();
         let (send, recv) = channel::unbounded();
         Self {
@@ -107,6 +108,7 @@ impl FftAnalysis {
             offset_freq: Arc::new(AtomicFloat::new(0.0)),
             udp_index: AtomicU8::new(0),
             udp_lost: Arc::new(AtomicFloat::new(0.0)),
+            channel: Arc::new(AtomicUsize::new(2)),
             handles: Handles::new(&parent),
             exit: Arc::new(AtomicBool::new(false)),
             dbg: Dbg::new(parent, "FftAnalysis")
@@ -191,9 +193,9 @@ impl FftAnalysis {
     ///
     /// 
     fn fft_process(
+        sampl_freq: usize,
         fft: &Arc<dyn Fft<f64>>,
         fft_buflen: usize,
-        complex: &CircularQueue<Complex<f64>>,
         fft_complex: &mut Vec<Complex<f64>>,
         fft_xy_len: usize,
         fft_xy: &Arc<PlotData>,
@@ -202,16 +204,16 @@ impl FftAnalysis {
         envelope_xy: &Arc<PlotData>,
         limitations_xy: &Arc<PlotData>,
     ) {
-        complex.buffer().clone_into(fft_complex);
         fft.process(fft_complex);
         // self.fft.process_with_scratch(&mut self.fftComplex);
-        Self::build_fft_xy(fft_buflen, fft_complex, fft_xy_len, fft_xy, fft_alarm_xy, limitations_xy);
+        Self::build_fft_xy(sampl_freq, fft_buflen, fft_complex, fft_xy_len, fft_xy, fft_alarm_xy, limitations_xy);
         Self::build_envelope(fft_xy_len, fft_xy, envelope_xy);
         Self::build_fft_xy_dif(fft_xy_len, fft_xy, fft_xy_dif);
     }    
     ///
     ///
-    fn build_fft_xy(fft_buflen: usize, fft_complex: &Vec<Complex<f64>>, fft_xy_len: usize, fft_xy: &Arc<PlotData>, fft_alarm_xy: &Arc<PlotData>, limitations_xy: &Arc<PlotData>) {
+    fn build_fft_xy(sampl_freq: usize, fft_buflen: usize, fft_complex: &Vec<Complex<f64>>, fft_xy_len: usize, fft_xy: &Arc<PlotData>, fft_alarm_xy: &Arc<PlotData>, limitations_xy: &Arc<PlotData>) {
+        // let factor = 1.0 / ((sampl_freq / 4) as f64);
         let factor = 1.0 / ((fft_buflen / 4) as f64);
         let mut x: f64;
         let mut y: f64;
@@ -219,14 +221,15 @@ impl FftAnalysis {
         fft_alarm_xy.clear();
         fft_xy.push([0.0, 0.0]);
         fft_xy.push([0.0, 0.0]);
+        let x_factor = (sampl_freq as f64 / fft_buflen as f64) / (fft_buflen as f64 / (fft_xy_len as f64));
         for i in 1..fft_xy_len {
-            x = i as f64;
+            x = i as f64 * x_factor;
             y = fft_complex.get(i).unwrap_or(&Complex::new(0.0, 0.0)).abs() * factor;
             // y = ((self.fftComplex[i].re.powi(2) + self.fftComplex[i].im.powi(2)) * factor) as f64;
-            if Self::fft_point_overflowed(x, y, limitations_xy) {
-                fft_alarm_xy.push([x, 0.0]);
-                fft_alarm_xy.push([x, y]);    
-            }
+            // if Self::fft_point_overflowed(x, y, limitations_xy) {
+            //     fft_alarm_xy.push([x, 0.0]);
+            //     fft_alarm_xy.push([x, y]);    
+            // }
             fft_xy.push([x, 0.0]);
             fft_xy.push([x, y]);
         }
@@ -338,7 +341,7 @@ impl Service for FftAnalysis {
                 // let mut buf = Some(Arc::new([0u8; UDP_BUF_SIZE]));
                 for queue in &queues {
                     while !queue.is_empty() {
-                        let _point = match queue.pop() {
+                        match queue.pop() {
                             Ok(point) => {
                                 if point.name == "Drive.Counter" {
                                     let value = point.valueReal();
@@ -349,7 +352,7 @@ impl Service for FftAnalysis {
                                 }
                             },
                             Err(_) => {},
-                        };
+                        }
                         // log::debug!("{} point ({:?}): {:?} {:?}", logLoc, point.dataType, point.name, point.value);
                     }
                 }
@@ -360,6 +363,8 @@ impl Service for FftAnalysis {
 
         let dbg = self.dbg.clone();
         let receiver = self.recv.take().unwrap();
+        let channel = self.channel.clone();
+        let f = self.f.load() as usize;
         let fft = self.fft.clone();
         let fft_buflen = self.fft_buflen;
         let complex = self.complex.clone();
@@ -382,35 +387,37 @@ impl Service for FftAnalysis {
             while !(exit.load(Ordering::Acquire)) {
                 match receiver.recv_timeout(RECV_TIMEOUT) {
                     Ok(event) => {
-                        // log::debug!("{dbg}.run | Event: {:?}", event);
-                        let val = event.to_int().as_int().value;
-                        buf.push(val as u16);
-                        // log::debug!("{} received buf {:?}", logLoc, buf);
-                        if buf.len() >= xy.len() {
-                            // log::debug!("{dbg}.run | {} values received", buf.len());
-                            Self::enqueue(
-                                &dbg,
-                                &mut complex.write(),
-                                &complex0.read(),
-                                &xy,
-                                &t,
-                                &delta,
-                                &buf,
-                            );
-                            if complex.read().is_full() {
-                                let fft = fft.clone();
-                                let complex = complex.clone();
-                                let fft_complex = fft_complex.clone();
-                                let fft_xy = fft_xy.clone();
-                                let fft_xy_dif = fft_xy_dif.clone();
-                                let fft_alarm_xy = fft_alarm_xy.clone();
-                                let envelope_xy = envelope_xy.clone();
-                                let limitations_xy = limitations_xy.clone();
-                                std::thread::spawn(move || {
+                        if event.name().ends_with(&format!("{}", channel.load(Ordering::Acquire))) {
+                            // log::debug!("{dbg}.run | Event: {:?}", event);
+                            let val = event.to_int().as_int().value;
+                            buf.push(val as u16);
+                            // log::debug!("{} received buf {:?}", logLoc, buf);
+                            if buf.len() >= xy.len() {
+                                // log::debug!("{dbg}.run | {} values received", buf.len());
+                                Self::enqueue(
+                                    &dbg,
+                                    &mut complex.write(),
+                                    &complex0.read(),
+                                    &xy,
+                                    &t,
+                                    &delta,
+                                    &buf,
+                                );
+                                buf = vec![];
+                                if complex.read().is_full() {
+                                    // let fft = fft.clone();
+                                    // let complex = complex.clone();
+                                    // let fft_complex = fft_complex.clone();
+                                    // let fft_xy = fft_xy.clone();
+                                    // let fft_xy_dif = fft_xy_dif.clone();
+                                    // let fft_alarm_xy = fft_alarm_xy.clone();
+                                    // let envelope_xy = envelope_xy.clone();
+                                    // let limitations_xy = limitations_xy.clone();
+                                    complex.read().buffer().clone_into(&mut fft_complex.write());
                                     Self::fft_process(
+                                        f,
                                         &fft,
                                         fft_buflen,
-                                        &complex.read(),
                                         &mut fft_complex.write(),
                                         fft_xy_len,
                                         &fft_xy,
@@ -420,9 +427,10 @@ impl Service for FftAnalysis {
                                         &limitations_xy,
                                     );
                                     complex.write().clear();
-                                });
+                                    // std::thread::spawn(move || {
+                                    // });
+                                }
                             }
-                            buf.clear();
                         }
                         err_limit.reset();
                     }

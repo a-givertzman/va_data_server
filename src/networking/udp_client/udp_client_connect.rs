@@ -44,12 +44,12 @@
 
 //! Message in the UDP has fallowing fiels
 //! 
-//! |Field name:   | SYN | ADDR | TYPE | COUNT | DATA        |
-//! |---           | --- | ---- | ---- | ----- | ----        |
-//! |Data type:    | u8  | u8   | u8   | u32   | u8[1024]    | 
-//! |Example value:| 22  | 0    | 16   | 1024  | [u16; 1024] |
+//! |Field name:   | SYN | CHANNELS | TYPE | COUNT | DATA        |
+//! |---           | --- | ----     | ---- | ----- | ----        |
+//! |Data type:    | u8  | u8       | u8   | u32   | u8[1024]    | 
+//! |Example value:| 22  | 0        | 16   | 1024  | [u16; 1024] |
 //! - `SYN` = 22 - message starts with
-//! - `ADDR` = 0...255 - an address of the input channel (0 - first input channel)
+//! - `CHANNELS` = 0...15 - Number of input channels which data stored in the `DATA` field
 //! - `TYPE` - type of values in the array in `DATA` field
 //!     - 8 - 1 byte integer value
 //!     - 16 - 2 byte float value
@@ -112,9 +112,10 @@ impl UdpClientConnect {
                                 log::trace!("{}.handshake | {}: Start message ACK - Ok", self.dbg, src_addr);
                                 Ok(())
                             }
-                            // Unexpected Data message received, but Start message expected
-                            &[UdpClient::DAT, _addr, _type_, _c1,_c2,_c3, _c4, ..] => {
-                                Err(error.err(format!("Start message ACK expected, but Data message received: {:?}...", &buf[..=10])))
+                            // Data message received, as Start message
+                            &[UdpClient::DAT, _channels, _type_, _c1,_c2,_c3, _c4, ..] => {
+                                log::warn!("{}.handshake | {}: Start message ACK - Ok", self.dbg, src_addr);
+                                Ok(())
                             }
                             &[UdpClient::ERR, err] | &[UdpClient::ERR, err, ..] => {
                                 Err(error.err(format!("Start message ACK expected, but error received: {:?}", err)))

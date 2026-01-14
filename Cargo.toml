@@ -25,7 +25,7 @@ rand = "~0.9"
 
 #
 # Regex
-regex = "~1.11"
+regex = "~1.12"
 
 rustfft = "~6.4"
 heapless = "~0.9"
@@ -37,7 +37,7 @@ flume = "~0.11"
 #
 # Collections
 linked-hash-map = "~0.5"
-indexmap = "~2.11"
+indexmap = "~2.12"
 hashers = "~1.0"
 concurrent-queue = "~2.5"
 

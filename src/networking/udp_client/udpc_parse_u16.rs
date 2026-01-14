@@ -11,6 +11,9 @@ pub struct UdpcParseU16 {
     pub txid: usize,
     pub typ: PointType,
     pub name: String,
+    /// Index of input channel 0..15
+    pub channel: usize,
+    pub channels: usize,
     pub status: Status,
     dbg: Dbg,
 }
@@ -26,12 +29,16 @@ impl UdpcParseU16 {
         txid: usize,
         parent: impl Into<String>,
         conf: &PointConf,
+        channels: usize,
     ) -> UdpcParseU16 {
         let dbg =  Dbg::new(parent, format!("UdpcParseU16({})", conf.name));
+        log::debug!("{}.new | channel: {}/{}", dbg, conf.id, channels);
         UdpcParseU16 {
             txid,
             typ: conf.type_.clone(),
             name: conf.name.clone(),
+            channel: conf.id,
+            channels,
             status: Status::Invalid,
             dbg,
         }
@@ -44,16 +51,17 @@ impl UdpcParseU16 {
             let (words, remainder) = bytes.as_chunks::<{ Self::SIZE }>();
             log::trace!("{}.convert | words: {:?}", self.dbg, words.len());
             if remainder.len() > 0 {
-                Err(Error::new(&self.name, "convert").err(format!("Wrong input len {}, must be divisible by 2", remainder.len())))
-            } else {
-                let values = words.iter().enumerate().map(|(index, word)| {
+                log::warn!("{}. convert | Wrong input len {}, must be divisible by 2", self.dbg, remainder.len());
+            }
+            let values = words.iter().enumerate()
+                .skip(self.channel)
+                .step_by(self.channels).map(|(index, word)| {
                     // log::debug!("{}.convert | index: {}  |  word: {:?}", self.id, index, word);
                     log::trace!("{}.convert | index: {}  |  word: {:?}", self.dbg, index, word);
-                    u16::from_be_bytes(*word)
+                    u16::from_le_bytes(*word)
                 });
-                log::trace!("{}.convert | values: {:?}", self.dbg, values);
-                Ok(values)
-            }
+            log::trace!("{}.convert | values: {:?}", self.dbg, values);
+            Ok(values)
         } else {
             Err(Error::new(&self.name, "convert").err("Input is empty"))
         }

@@ -119,33 +119,38 @@ impl UdpClient {
         // log::debug!("{}.parse | message: {:?}", self.id, buf);
         match buf {
             // Data message received
-            &[UdpClient::DAT, addr, typ, c1,c2,c3, c4, ..] => {
-                let count = u32::from_be_bytes([c1, c2, c3, c4]) as usize;
+            &[UdpClient::DAT, channels, typ, c1,c2,c3, c4, ..] => {
+                let count = u32::from_le_bytes([c1, c2, c3, c4]) as usize;
+                // log::debug!("{dbg}.parse | channels: {}, count: {}", channels, count);
                 match InputType::try_from(typ) {
                     Ok(typ) => {
-                        // log::debug!("{dbg}.parse | addr: {}, count: {} values of type {}", addr, count, typ);
-                        // log::debug!("{dbg}.parse | addr: {} type: {} count: {}  |  {:?}", addr, typ, count, &buf[UdpClient::HEAD_LEN..(if buf.len() < 10 {buf.len()} else {10})]);
-                        let len = count * typ.size();
+                        // log::debug!("{dbg}.parse | channels: {}, count: {} values of type {}", channels, count, typ);
+                        // log::debug!("{dbg}.parse | channels: {} type: {} count: {}  |  {:?}", channels, typ, count, &buf[UdpClient::HEAD_LEN..(if buf.len() < 10 {buf.len()} else {10})]);
+                        // let len = count * typ.size();
+                        let len = count;
                         match buf.get(UdpClient::HEAD_LEN..(UdpClient::HEAD_LEN + len)) {
                             Some(bytes) => {
                                 // let bytes: &Vec<u8> = bytes;
                                 // log::trace!("{}.parse | bytes: {:?}", dbg, bytes);
                                 // log::trace!("{}.parse | points: {:?}", dbg, points.iter().map(|(id, point)| format!("{}[{}]", point.name(), id)).collect::<Vec<String>>());
-                                match points.get_mut(&addr) {
-                                    Some(parse_point) => {
-                                        match parse_point.add(bytes, status, timestamp) {
-                                            Ok(points) => {
-                                                for point in points {
-                                                    // log::debug!("{}.parse | point: {:?}", dbg, point);
-                                                    if let Err(err) = tx_send.send(point) {
-                                                        log::warn!("{}.parse | Send error: {}", dbg, err);
+                                for channel in 0..channels {
+                                    match points.get_mut(&channel) {
+                                        Some(parse_point) => {
+                                            match parse_point.add(bytes, status, timestamp) {
+                                                Ok(points) => {
+                                                    for point in points {
+                                                        // log::debug!("{}.parse | point: {:?}", dbg, point);
+                                                        // log::debug!("{}.parse | point: {} = {:?}", dbg, point.name(), point.value());
+                                                        if let Err(err) = tx_send.send(point) {
+                                                            log::warn!("{}.parse | Send error: {}", dbg, err);
+                                                        }
                                                     }
                                                 }
+                                                Err(err) => log::warn!("{}.parse | Error: {}", dbg, err),
                                             }
-                                            Err(err) => log::warn!("{}.parse | Error: {}", dbg, err),
                                         }
+                                        None => log::warn!("{dbg}.parse | Can't find Input with addr '{}'", channel),
                                     }
-                                    None => log::warn!("{dbg}.parse | Can't find Input with addr '{}'", addr),
                                 }
                             }
                             None => {
@@ -178,8 +183,18 @@ impl UdpClient {
         let error = Error::new(dbg, "read");
         let mut buf = vec![0; mtu];
         match socket.recv_from(&mut buf) {
-            Ok((_, _)) => {
-                // log::debug!("{dbg}.read | Received buffer {} bytes", buf.len());
+            Ok((len, _)) => {
+                // let count = u32::from_le_bytes(buf.get(3..=6).unwrap_or(&[0,0,0,0]).try_into().unwrap()) as usize;
+                // log::debug!("{dbg}.read | Received buffer {} bytes, \n\t | {}, {}, {}, {} | {}, {}, {}, {}", len,
+                //     buf.get(0).unwrap_or(&0),
+                //     buf.get(1).unwrap_or(&0),
+                //     buf.get(2).unwrap_or(&0),
+                //     count,
+                //     u16::from_le_bytes(buf.get(07..=08).unwrap_or(&[0,0]).try_into().unwrap()),
+                //     u16::from_le_bytes(buf.get(09..=10).unwrap_or(&[0,0]).try_into().unwrap()),
+                //     u16::from_le_bytes(buf.get(11..=12).unwrap_or(&[0,0]).try_into().unwrap()),
+                //     u16::from_le_bytes(buf.get(13..=14).unwrap_or(&[0,0]).try_into().unwrap()),
+                // );
                 Self::parse(dbg, points, buf.as_slice(), Utc::now(), tx_send);
                 Ok(())
             }
@@ -253,13 +268,14 @@ impl UdpClient {
     ///
     /// Configuring ParsePoint objects depending on point configurations coming from [conf]
     fn configure_parse_points(dbg: &Dbg, tx_id: usize, conf: &[PointConf]) -> IndexMap<u8, Box<dyn ParsePoint>> {
+        let channels = conf.len();
         conf.iter().filter_map(|point_conf| {
             match point_conf.type_ {
                 // PointConfType::Bool => {
                 //     (point_conf.name.clone(), Self::box_bool(tx_id, point_conf.name.clone(), point_conf))
                 // }
                 PointConfType::Int => {
-                    Some((point_conf.id as u8, Self::box_i16(tx_id, point_conf.name.clone(), point_conf)))
+                    Some((point_conf.id as u8, Self::box_i16(tx_id, point_conf.name.clone(), point_conf, channels)))
                 }
                 // PointConfType::Real => {
                 //     (point_conf.name.clone(), Self::box_real(tx_id, point_conf.name.clone(), point_conf))
@@ -281,11 +297,12 @@ impl UdpClient {
     // }
     ///
     ///
-    fn box_i16(tx_id: usize, name: String, config: &PointConf) -> Box<dyn ParsePoint> {
+    fn box_i16(tx_id: usize, name: String, config: &PointConf, channels: usize) -> Box<dyn ParsePoint> {
         Box::new(UdpcParseU16::new(
             tx_id,
             name,
             config,
+            channels,
         ))
     }
     // ///

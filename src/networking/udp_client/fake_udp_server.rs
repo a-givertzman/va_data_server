@@ -153,12 +153,12 @@ impl Service for FakeUdpServer {
                                             }
                                             loop {
                                                 cycle.start();
-                                                let mut buf = vec![UdpClient::DAT, conf.channel, InputType::U16 as u8];
-                                                buf.extend(((conf.count) as u32).to_be_bytes());
+                                                let mut buf = vec![UdpClient::DAT, 2, InputType::U16 as u8];
+                                                buf.extend(((conf.count) as u32).to_le_bytes());
                                                 for _ in 0..conf.count {
                                                     match (value.lock())(time) {
                                                         Some(val) => {
-                                                            buf.extend(val.to_be_bytes());
+                                                            buf.extend(val.to_le_bytes());
                                                             time += period;
                                                         }
                                                         None => break 'main,

@@ -101,7 +101,6 @@ impl UiApp {
 ///
 impl eframe::App for UiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        let vp_size = ctx.input(|i| i.viewport().inner_rect).unwrap();
         let head_hight = 34.0;
         self.events.clear();
         let mut even = false;
@@ -113,7 +112,8 @@ impl eframe::App for UiApp {
             }
             even = !even;
         }
-
+        let vp_size = ctx.input(|is| is.content_rect());
+        // log::debug!("UiApp.update | ctx.input | vp_size: {:?}", vp_size);
         egui::Window::new("Events")
             .anchor(Align2::RIGHT_BOTTOM, [0.0, 0.0])
             .default_size(vec2(0.4 * vp_size.width(), 0.5 * vp_size.height() - head_hight))
@@ -139,10 +139,20 @@ impl eframe::App for UiApp {
             .anchor(Align2::RIGHT_TOP, [0.0, 0.0])
             .default_size(vec2(0.4 * vp_size.width(), 0.45 * vp_size.height() - head_hight))
             .show(ctx, |ui| {
-                // debug!("[UiApp.update] self.udpSrv.lock...");
-                // debug!("[UiApp.update] self.udpSrv.lock ready");
+                // debug!("UiApp.update | self.udpSrv.lock...");
+                // debug!("UiApp.update | self.udpSrv.lock ready");
                 // ui.label(format!(" i: {:?}", inputSignal.i));
                 ui.horizontal(|ui| {
+                    ui.add_sized([100.0, 16.0], egui::Label::new(
+                        format!("Channel: "),
+                    ),);
+                    let mut channel = format!("{}", self.fft.channel.load(Ordering::Acquire));
+                    if ui.add_sized([64.0, 16.0], egui::TextEdit::singleline(&mut channel)).changed() {
+                        if let Ok(value) = channel.parse() {
+                            self.fft.channel.store(value, Ordering::Release);
+                        }
+                    };                          
+                    ui.separator();
                     ui.add_sized(
                         [200.0, 16.0], 
                         egui::Label::new(
@@ -186,7 +196,7 @@ impl eframe::App for UiApp {
                     );
                     if ui.button("\u{e803}").clicked() {
                         self.fft.udp_lost.store(0.0);
-                        log::debug!("[UiApp.update] real input udpLost clicked");
+                        log::debug!("UiApp.update | real input udpLost clicked");
                     }
                 });
                 ui.separator();
@@ -253,6 +263,120 @@ impl eframe::App for UiApp {
                     );                        
                 });
             });
+            egui::Window::new("FFT")
+                .anchor(Align2::LEFT_TOP, [0.0, 0.0])
+                .default_size(vec2(0.6 * vp_size.width(), 1.0 * vp_size.height() - head_hight))
+                .show(ctx, |ui| {
+                    // ui.label(format!("new fft: '{}'", 0));
+                    // let points = analyzeFft.fftXy.clone();
+                    ui.horizontal(|ui| {
+                        ui.add_sized(
+                            [200.0, 16.0], 
+                            egui::Label::new(format!("fftComplex length: {:?}", self.fft.fft_complex.read().len())),
+                        );
+                        ui.separator();
+                        ui.add_sized(
+                            [200.0, 16.0], 
+                            egui::Label::new(format!("fftPoints length: {:?}", self.fft.fft_xy.len())),
+                        );
+                        ui.separator();
+                        ui.add_sized(
+                            [250.0, 16.0], 
+                            egui::Label::new(format!("Drive freq: {:.4} об/мин ({:.2} Гц)", self.fft.base_freq, self.fft.base_freq.load() / 60.0)),
+                        );
+                        ui.separator();
+                        ui.add_sized(
+                            [250.0, 16.0], 
+                            egui::Label::new(format!("freq offset: {:.4} об/мин ({:.2} Гц)", self.fft.offset_freq, self.fft.offset_freq.load() / 60.0)),
+                        );
+                        // ui.separator();
+                        ui.separator();
+                        // if ui.add_sized([200.0, 16.0], egui::Button::new("just button")).clicked() {
+                        // }
+                    });
+                    let mut min = format!("{}", self.fft_min_y);
+                    let mut max = format!("{}", self.fft_max_y);
+                    ui.separator();
+                    ui.horizontal(|ui| {
+                        ui.add_sized(
+                            [32.0, 16.0 * 2.0 + 6.0], 
+                            egui::Label::new(format!("↕")), //⇔⇕   ↔
+                        );
+                        ui.separator();
+                        ui.vertical(|ui| {
+                            if ui.add_sized([64.0, 16.0], egui::TextEdit::singleline(&mut max)).changed() {
+                                if !self.fft_autoscale_y {
+                                    self.fft_max_y = match max.parse() {Ok(value) => {value}, Err(_) => {self.fft_max_y}};
+                                }
+                            };                          
+                            if ui.add_sized([64.0, 16.0], egui::TextEdit::singleline(&mut min)).changed() {
+                                if !self.fft_autoscale_y {
+                                    self.fft_min_y = match min.parse() {Ok(value) => {value}, Err(_) => {self.fft_min_y}};
+                                }    
+                            };                    
+                        });
+                        // ui.separator();
+                        // ui.add_sized(
+                        //     [32.0, 16.0 * 2.0 + 6.0], 
+                        //     egui::Label::new(format!("↔")), //⇔⇕   ↔
+                        // );
+                        // ui.separator();
+                        // ui.vertical(|ui| {
+                        //     if ui.add_sized([64.0, 16.0], egui::TextEdit::singleline(&mut min)).changed() {
+                        //         if !self.fftAutoscaleY {
+                        //             self.fftMinY = match min.parse() {Ok(value) => {value}, Err(_) => {self.fftMinY}};
+                        //         }    
+                        //     };                    
+                        //     if ui.add_sized([64.0, 16.0], egui::TextEdit::singleline(&mut max)).changed() {
+                        //         if !self.fftAutoscaleY {
+                        //             self.fftMaxY = match max.parse() {Ok(value) => {value}, Err(_) => {self.fftMaxY}};
+                        //         }
+                        //     };                          
+                        // });
+                    });
+                    let mut plot = Plot::new("fft");
+                    if !self.fft_autoscale_y {
+                        plot = plot.include_y(self.fft_min_y);
+                        plot = plot.include_y(self.fft_max_y);
+                    }                
+                    plot.show(ui, |plot_ui| {
+                        plot_ui.line(
+                            Line::new(
+                                "fftXy",
+                                self.fft.fft_xy.xy(),
+                            ).color(Color32::LIGHT_GREEN),
+                        );
+                        plot_ui.line(
+                            Line::new(
+                                "limitationsXy",
+                                self.fft.limitations_xy.xy(),
+                            ).color(Color32::YELLOW),
+                        );
+                        let mut even = false;
+                        let mut series = vec![];
+                        for item in self.fft.fft_alarm_xy.xy() {
+                            series.push(item);
+                            if even {
+                                plot_ui.line(
+                                    Line::new(
+                                        "fftAlarmXy",
+                                        series.clone(),
+                                    ).color(Color32::RED).width(3.0),
+                                );
+                                series.clear();
+                            }
+                            even = !even;
+                        }
+                        if false {
+                            plot_ui.points(
+                                Points::new(
+                                    "fftXyDif",
+                                    self.fft.fft_xy_dif.xy()
+                                ).color(Color32::DARK_RED),
+                            );
+                        }
+                    });
+                });
 
         // egui::Window::new("AnalyzeFft input").show(ctx, |ui| {
         //     let analyzeFft = self.analyzeFft.lock().unwrap();
@@ -270,120 +394,6 @@ impl eframe::App for UiApp {
         //         )
         //     });
         // });
-        egui::Window::new("FFT")
-            .anchor(Align2::LEFT_TOP, [0.0, 0.0])
-            .default_size(vec2(0.6 * vp_size.width(), 1.0 * vp_size.height() - head_hight))
-            .show(ctx, |ui| {
-                // ui.label(format!("new fft: '{}'", 0));
-                // let points = analyzeFft.fftXy.clone();
-                ui.horizontal(|ui| {
-                    ui.add_sized(
-                        [200.0, 16.0], 
-                        egui::Label::new(format!("fftComplex length: {:?}", self.fft.fft_complex.read().len())),
-                    );
-                    ui.separator();
-                    ui.add_sized(
-                        [200.0, 16.0], 
-                        egui::Label::new(format!("fftPoints length: {:?}", self.fft.fft_xy.len())),
-                    );
-                    ui.separator();
-                    ui.add_sized(
-                        [250.0, 16.0], 
-                        egui::Label::new(format!("Drive freq: {:.4} об/мин ({:.2} Гц)", self.fft.base_freq, self.fft.base_freq.load() / 60.0)),
-                    );
-                    ui.separator();
-                    ui.add_sized(
-                        [250.0, 16.0], 
-                        egui::Label::new(format!("freq offset: {:.4} об/мин ({:.2} Гц)", self.fft.offset_freq, self.fft.offset_freq.load() / 60.0)),
-                    );
-                    // ui.separator();
-                    ui.separator();
-                    // if ui.add_sized([200.0, 16.0], egui::Button::new("just button")).clicked() {
-                    // }
-                });
-                let mut min = format!("{}", self.fft_min_y);
-                let mut max = format!("{}", self.fft_max_y);
-                ui.separator();
-                ui.horizontal(|ui| {
-                    ui.add_sized(
-                        [32.0, 16.0 * 2.0 + 6.0], 
-                        egui::Label::new(format!("↕")), //⇔⇕   ↔
-                    );
-                    ui.separator();
-                    ui.vertical(|ui| {
-                        if ui.add_sized([64.0, 16.0], egui::TextEdit::singleline(&mut max)).changed() {
-                            if !self.fft_autoscale_y {
-                                self.fft_max_y = match max.parse() {Ok(value) => {value}, Err(_) => {self.fft_max_y}};
-                            }
-                        };                          
-                        if ui.add_sized([64.0, 16.0], egui::TextEdit::singleline(&mut min)).changed() {
-                            if !self.fft_autoscale_y {
-                                self.fft_min_y = match min.parse() {Ok(value) => {value}, Err(_) => {self.fft_min_y}};
-                            }    
-                        };                    
-                    });
-                    // ui.separator();
-                    // ui.add_sized(
-                    //     [32.0, 16.0 * 2.0 + 6.0], 
-                    //     egui::Label::new(format!("↔")), //⇔⇕   ↔
-                    // );
-                    // ui.separator();
-                    // ui.vertical(|ui| {
-                    //     if ui.add_sized([64.0, 16.0], egui::TextEdit::singleline(&mut min)).changed() {
-                    //         if !self.fftAutoscaleY {
-                    //             self.fftMinY = match min.parse() {Ok(value) => {value}, Err(_) => {self.fftMinY}};
-                    //         }    
-                    //     };                    
-                    //     if ui.add_sized([64.0, 16.0], egui::TextEdit::singleline(&mut max)).changed() {
-                    //         if !self.fftAutoscaleY {
-                    //             self.fftMaxY = match max.parse() {Ok(value) => {value}, Err(_) => {self.fftMaxY}};
-                    //         }
-                    //     };                          
-                    // });
-                });
-                let mut plot = Plot::new("fft");
-                if !self.fft_autoscale_y {
-                    plot = plot.include_y(self.fft_min_y);
-                    plot = plot.include_y(self.fft_max_y);
-                }                
-                plot.show(ui, |plot_ui| {
-                    plot_ui.line(
-                        Line::new(
-                            "fftXy",
-                            self.fft.fft_xy.xy(),
-                        ).color(Color32::LIGHT_GREEN),
-                    );
-                    plot_ui.line(
-                        Line::new(
-                            "limitationsXy",
-                            self.fft.limitations_xy.xy(),
-                        ).color(Color32::YELLOW),
-                    );
-                    let mut even = false;
-                    let mut series = vec![];
-                    for item in self.fft.fft_alarm_xy.xy() {
-                        series.push(item);
-                        if even {
-                            plot_ui.line(
-                                Line::new(
-                                    "fftAlarmXy",
-                                    series.clone(),
-                                ).color(Color32::RED).width(3.0),
-                            );
-                            series.clear();
-                        }
-                        even = !even;
-                    }
-                    if false {
-                        plot_ui.points(
-                            Points::new(
-                                "fftXyDif",
-                                self.fft.fft_xy_dif.xy()
-                            ).color(Color32::DARK_RED),
-                        );
-                    }
-                });
-            });
         // std::thread::sleep(self.renderDelay);
         ctx.request_repaint();
     }
