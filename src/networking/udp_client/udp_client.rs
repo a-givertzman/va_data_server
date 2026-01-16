@@ -126,8 +126,8 @@ impl UdpClient {
                     Ok(typ) => {
                         // log::debug!("{dbg}.parse | channels: {}, count: {} values of type {}", channels, count, typ);
                         // log::debug!("{dbg}.parse | channels: {} type: {} count: {}  |  {:?}", channels, typ, count, &buf[UdpClient::HEAD_LEN..(if buf.len() < 10 {buf.len()} else {10})]);
-                        // let len = count * typ.size();
-                        let len = count;
+                        let len = count * typ.size();
+                        // let len = count;
                         match buf.get(UdpClient::HEAD_LEN..(UdpClient::HEAD_LEN + len)) {
                             Some(bytes) => {
                                 // let bytes: &Vec<u8> = bytes;

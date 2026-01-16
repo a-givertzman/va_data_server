@@ -20,6 +20,7 @@ pub struct FakeUdpServerConfig {
     pub name: Name,
     pub addr: String,
     pub channel: u8,
+    pub channels: u8,
     /// `Values <u16>` in the DATA field of the single UDP message, not bytes
     pub count: usize,
     /// Maximum Transmission Unit, default 1500, [Resolve IPv4 Fragmentation, MTU...](https://www.cisco.com/c/en/us/support/docs/ip/generic-routing-encapsulation-gre/25885-pmtud-ipfrag.html)
@@ -121,8 +122,8 @@ impl Service for FakeUdpServer {
                 (State::UdpBindError,   Box::new(|message| log::error!("{}", message))),
                 (State::UdpRecvError,   Box::new(|message| log::error!("{}", message))),
                 (State::UdpSendError,   Box::new(|message| log::error!("{}", message))),
-                (State::WouldBlock,   Box::new(|message| log::error!("{}", message))),
-                (State::TimedOut,   Box::new(|message| log::error!("{}", message))),
+                (State::WouldBlock,     Box::new(|message| log::error!("{}", message))),
+                (State::TimedOut,       Box::new(|message| log::error!("{}", message))),
             ]);
             let local_addr =  conf.addr;
             'main: loop {
@@ -153,12 +154,18 @@ impl Service for FakeUdpServer {
                                             }
                                             loop {
                                                 cycle.start();
-                                                let mut buf = vec![UdpClient::DAT, 2, InputType::U16 as u8];
+                                                let mut buf = vec![UdpClient::DAT, conf.channels, InputType::U16 as u8];
                                                 buf.extend(((conf.count) as u32).to_le_bytes());
                                                 for _ in 0..conf.count {
                                                     match (value.lock())(time) {
                                                         Some(val) => {
-                                                            buf.extend(val.to_le_bytes());
+                                                            for ch in 0..conf.channels {
+                                                                if conf.channel == ch {
+                                                                    buf.extend(val.to_le_bytes());
+                                                                } else {
+                                                                    buf.extend(0_u16.to_le_bytes());
+                                                                }
+                                                            }
                                                             time += period;
                                                         }
                                                         None => break 'main,

@@ -71,6 +71,7 @@ fn random_i16() {
             name: Name::new(dbg, "FakeUdpServer"),
             addr: "127.0.0.1:15180".to_owned(),
             channel: 0,
+            channels: 2,
             count: 512,
             mtu: 1500,
             sampl_freq: freq,

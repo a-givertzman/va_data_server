@@ -5,7 +5,10 @@ use egui::{vec2, Color32, Align2, FontFamily, TextStyle, FontId};
 use crate::{fft::FftAnalysis, networking::UdpClient};
 
 
-
+const UPLAY: &str = "\u{23F5}";
+const UPAUSE: &str = "\u{23F8}";
+///
+/// 
 pub struct UiApp {
     // pub inputSignal: Arc<Mutex<InputSignal>>,
     // pub analyzeFft: Arc<Mutex<AnalizeFft>>,
@@ -143,11 +146,11 @@ impl eframe::App for UiApp {
                 // debug!("UiApp.update | self.udpSrv.lock ready");
                 // ui.label(format!(" i: {:?}", inputSignal.i));
                 ui.horizontal(|ui| {
-                    ui.add_sized([100.0, 16.0], egui::Label::new(
-                        format!("Channel: "),
+                    ui.add_sized([64.0, 16.0], egui::Label::new(
+                        format!("Channel:"),
                     ),);
                     let mut channel = format!("{}", self.fft.channel.load(Ordering::Acquire));
-                    if ui.add_sized([64.0, 16.0], egui::TextEdit::singleline(&mut channel)).changed() {
+                    if ui.add_sized([24.0, 16.0], egui::TextEdit::singleline(&mut channel)).changed() {
                         if let Ok(value) = channel.parse() {
                             self.fft.channel.store(value, Ordering::Release);
                         }
@@ -197,6 +200,11 @@ impl eframe::App for UiApp {
                     if ui.button("\u{e803}").clicked() {
                         self.fft.udp_lost.store(0.0);
                         log::debug!("UiApp.update | real input udpLost clicked");
+                    }
+                    ui.separator();
+                    let pause = self.fft.pause.load(Ordering::Acquire);
+                    if ui.button(if pause {UPLAY} else {UPAUSE}).clicked() {
+                        self.fft.pause.store(!pause, Ordering::Release);
                     }
                 });
                 ui.separator();

@@ -28,25 +28,18 @@ fn main() -> Result<(), Box<dyn Error>> {
         .module("winit", LogLevel::Info)
         .module("sal_sync::thread_pool", LogLevel::Info)
         .init();
-    // let filter = Targets::new()
-    //     .with_default(LevelFilter::DEBUG)
-    //     .with_target("winit", LevelFilter::INFO);
-    // tracing_subscriber::registry()
-    //     .with(tracing_subscriber::fmt::layer())
-    //     .with(filter)
-    //     .init();
     let dbg = Dbg::own("main");
     //
     // ======================== Configure input signal here ========================
     // Frequency of the test signal, Hz
-    let freq = [1000, 4000, 12000];
+    let freq = [1024 / 2, 4096, 8192, 16384, 20000, 32769];
     // Amplitude of the test signal
-    let amp = [300.0, 2048.0, 1024.0];
+    let amp = [2048.0, 2048.0, 2048.0, 2048.0, 2048.0, 2048.0];
     // Angular frequency of the test signal, rad/s
     let ω_amp: Vec<(f64, f64)> = freq.iter().enumerate().map(|(i, f)| (2.0 * PI * *f as f64, amp[i] * 0.5)).collect();
     // ===================== Configure Sampling & FFT analizer =====================
-    let sampl_freq = 666_624;             // Sampling Frequency of the ADC, Hz
-    let fft_buflen = 65_536;             // FFT calculation window
+    let sampl_freq = 524_288;   // 262_144;     131_072;    65_536;    666_624;             // Sampling Frequency of the ADC, Hz
+    let fft_buflen = 524_288;   // 262_144;     131_072;    65_536;    666_624;             // FFT calculation window
     // =============================================================================
     log::info!("{dbg} | Test signal:");
     for (i, f) in freq.iter().enumerate() {
@@ -94,25 +87,26 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     udp_client.run()?;
 
-    // let fake_udp_server = FakeUdpServer::new(
-    //     FakeUdpServerConfig {
-    //         name: Name::new(dbg, "FakeUdpServer"),
-    //         addr: "127.0.0.1:15181".to_owned(),
-    //         channel: 0,
-    //         count: 512,
-    //         mtu: 1500,
-    //         sampl_freq,
-    //     },
-    //     services.clone(),
-    //     move |time| {
-    //         let val = ω_amp.iter().fold(0.0, |acc, (ω, amp)| {
-    //             acc + ((ω * time).sin() + 1.0) * amp
-    //         });
-    //         // log::debug!("main.run | t: {},  val: {}", time, val);
-    //         Some(val.round() as u16)
-    //     }
-    // );
-    // fake_udp_server.run()?;
+    let fake_udp_server = FakeUdpServer::new(
+        FakeUdpServerConfig {
+            name: Name::new(dbg, "FakeUdpServer"),
+            addr: "127.0.0.1:15181".to_owned(),
+            channel: 1,
+            channels: 2,
+            count: 512,
+            mtu: 1500,
+            sampl_freq,
+        },
+        services.clone(),
+        move |time| {
+            let val = ω_amp.iter().fold(0.0, |acc, (ω, amp)| {
+                acc + ((ω * time).sin() + 1.0) * amp
+            });
+            // log::debug!("main.run | t: {},  val: {}", time, val);
+            Some(val.round() as u16)
+        }
+    );
+    fake_udp_server.run()?;
 
     eframe::run_native(
         "Rpi-FFT-App", 
