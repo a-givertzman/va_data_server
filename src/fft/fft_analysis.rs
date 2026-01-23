@@ -1,12 +1,13 @@
+use egui_plot::{PlotPoint, PlotPoints};
 use num::{Complex, complex::ComplexFloat};
 use rustfft::{FftPlanner, Fft};
 use sal_core::{dbg::Dbg, error::{Error, ErrorLimit}};
 use sal_sync::{services::{RECV_TIMEOUT, Service, entity::{Name, Object, Point}}, sync::{Handles, Owner, RwLock, channel::{self, Receiver, RecvTimeoutError, Sender}}};
 use std::{
-    fmt::{Debug, Display}, sync::{Arc, atomic::{AtomicBool, AtomicU8, AtomicUsize, Ordering}}, thread::{self}, time::{Duration, Instant}
+    collections::VecDeque, fmt::{Debug, Display}, io::BufRead, sync::{Arc, atomic::{AtomicBool, AtomicU8, AtomicUsize, Ordering}}, thread::{self}, time::{Duration, Instant}
 };
 use crate::{
-    circular_queue::CircularQueue, ds::DsServer, dsp_filters::average_filter::AverageFilter, networking::UdpClient 
+    circular_queue::CircularQueue, ds::DsServer, dsp_filters::average_filter::AverageFilter, networking::UdpClient, presentation::PlotData 
     // networking::udp_server::{
     //     UdpServer,
     //     UDP_BUF_SIZE, UDP_HEADER_SIZE,
@@ -41,7 +42,8 @@ pub struct FftAnalysis {
     pub fft_buflen: usize,
     pub fft_complex: Arc<RwLock<Vec<Complex<f64>>>>,
     hamming_window: Arc<RwLock<Vec<f64>>>,
-    pub xy: Arc<PlotData>,
+    send_xy: Sender<u16>,
+    recv_xy: Owner<Receiver<u16>>,
     fft: Arc<dyn Fft<f64> + 'static>,
     pub fft_xy_len: usize,
     pub fft_xy: Arc<PlotData>,
@@ -81,19 +83,19 @@ impl FftAnalysis {
         //     }
         // }).collect();
         //
-        //  The length of the input signal display window
-        let xy_len = 2048;
-        //
         // The length of the FFT display window 
         let fft_xy_len = 35_000;
         let mut planner = FftPlanner::new();
         let (send, recv) = channel::unbounded();
+        let (send_xy, recv_xy) = channel::unbounded();
         Self {
             name: Name::new(&parent, "FftAnalysis"),
             udp_client,
             ds_server,
             send,
             recv: Owner::new(recv),
+            send_xy,
+            recv_xy: Owner::new(recv_xy),
             delta: Arc::new(AtomicFloat::new(delta)),
             f: Arc::new(AtomicFloat::new(f)),
             sampling_period: Arc::new(AtomicFloat::new(sampling_period)),
@@ -103,7 +105,6 @@ impl FftAnalysis {
             fft_buflen,
             fft_complex: Arc::new(RwLock::new(vec![Complex{re: 0.0, im: 0.0}; fft_buflen])),
             hamming_window: Arc::new(RwLock::new(Self::create_hamming_window(fft_buflen))),
-            xy: Arc::new(PlotData::new(xy_len)),
             fft: planner.plan_fft_forward(fft_buflen),
             fft_xy_len,
             fft_xy: Arc::new(PlotData::new(fft_xy_len * 2)),
@@ -121,6 +122,11 @@ impl FftAnalysis {
             exit: Arc::new(AtomicBool::new(false)),
             dbg: Dbg::new(parent, "FftAnalysis")
         }
+    }
+    ///
+    /// Returns stream of XY values
+    pub fn xy(&self) -> Receiver<u16> {
+        self.recv_xy.take().unwrap()
     }
     ///
     /// Create Hamming window coefficients
@@ -158,8 +164,8 @@ impl FftAnalysis {
             if freq < 0.0 {
                 freq = 0.0;
             }
-            limitations_xy.push([freq, prev_amplitude]);
-            limitations_xy.push([freq, amplitude]);
+            limitations_xy.push(&[freq, prev_amplitude]);
+            limitations_xy.push(&[freq, amplitude]);
             prev_amplitude = amplitude;
         }
         log::trace!("{dbg}.build_limitations | limitations: {:?}", limitations_xy.xy());
@@ -180,9 +186,6 @@ impl FftAnalysis {
         dbg: &Dbg,
         complex: &mut CircularQueue<Complex<f64>>,
         // complex0: &Vec<Complex<f64>>,
-        xy: &Arc<PlotData>,
-        t: &AtomicFloat<f64>,
-        delta: &AtomicFloat<f64>,
         values: &[u16],
         window: &[f64],
         dc_remove: f64,
@@ -199,8 +202,6 @@ impl FftAnalysis {
                     im: 0.0, 
                 },
             );
-            xy.add([t.load() * 1.0e6, *val as f64]);
-            t.store(t.load() + delta.load());
         }
         log::trace!("{dbg}.enqueue | Done");
     }
@@ -239,8 +240,8 @@ impl FftAnalysis {
         let mut y: f64;
         fft_xy.clear();
         fft_alarm_xy.clear();
-        fft_xy.push([0.0, 0.0]);
-        fft_xy.push([0.0, 0.0]);
+        fft_xy.push(&[0.0, 0.0]);
+        fft_xy.push(&[0.0, 0.0]);
         for i in 1..fft_xy_len {
             x = i as f64 * x_factor;
             y = fft_complex.get(i).unwrap_or(&Complex::new(0.0, 0.0)).abs() * y_factor;
@@ -249,8 +250,8 @@ impl FftAnalysis {
             //     fft_alarm_xy.push([x, 0.0]);
             //     fft_alarm_xy.push([x, y]);    
             // }
-            fft_xy.push([x, 0.0]);
-            fft_xy.push([x, y]);
+            fft_xy.push(&[x, 0.0]);
+            fft_xy.push(&[x, y]);
         }
     }
     ///
@@ -285,7 +286,7 @@ impl FftAnalysis {
             average = y  + 10.0 * average;
             // average = 100000.0 + 0.1 * y  + (filterBuf.buffer().iter().sum::<f64>() / (filterLen as f64));
             // self.envelopeXy.push([x, 0.0]);
-            envelope_xy.push([x, average]);
+            envelope_xy.push(&[x, average]);
         }
     }
     ///
@@ -299,7 +300,7 @@ impl FftAnalysis {
         let mut i: usize = 0;
         let mut y_prev: f64 = fft_xy.get(i)[1];
         fft_xy_dif.clear();
-        fft_xy_dif.push([0.0, 0.0]);
+        fft_xy_dif.push(&[0.0, 0.0]);
         for j in 1..len {
             i = j * 2 - 1;
             y = fft_xy.get(j)[1];
@@ -307,7 +308,7 @@ impl FftAnalysis {
             filter.add((y - y_prev).abs());
             y_dif = filter.value() * 100.0 + 1000000.0;
             y_prev = y;
-            fft_xy_dif.push([fft_xy.get(j)[0] - (filter_len / 2) as f64, y_dif]);
+            fft_xy_dif.push(&[fft_xy.get(j)[0] - (filter_len / 2) as f64, y_dif]);
         }
         // for j in 0..(filterLen / 2) {
         //     i = len - (filterLen / 2) + j;
@@ -398,7 +399,7 @@ impl Service for FftAnalysis {
         let fft_alarm_xy = self.fft_alarm_xy.clone();
         let envelope_xy = self.envelope_xy.clone();
         let limitations_xy = self.limitations_xy.clone();
-        let xy = self.xy.clone();
+        let send_xy = self.send_xy.clone();
         let t = self.t.clone();
         let delta = self.delta.clone();
         let exit = self.exit.clone();
@@ -415,18 +416,18 @@ impl Service for FftAnalysis {
                         if !pause.load(Ordering::Acquire) {
                             if event.name().ends_with(&format!("{}", channel.load(Ordering::Acquire))) {
                                 // log::debug!("{dbg}.run | Event: {:?}", event);
-                                let val = event.to_int().as_int().value;
-                                buf.push(val as u16);
-                                // log::debug!("{} received buf {:?}", logLoc, buf);
+                                let val = event.to_int().as_int().value as u16;
+                                if let Err(err) = send_xy.send(val) {
+                                    log::debug!("{dbg}.run | Send error {:?}", err);
+                                }
+                                buf.push(val);
+                                // log::debug!("{dbg} received buf {:?}", buf);
                                 if buf.len() >= 512 {
                                     // log::debug!("{dbg}.run | {} values received", buf.len());
                                     Self::enqueue(
                                         &dbg,
                                         &mut complex.write(),
                                         // &complex0.read(),
-                                        &xy,
-                                        &t,
-                                        &delta,
                                         &buf,
                                         &window.read(),
                                         dc,
@@ -564,58 +565,5 @@ struct Range {
 impl Range {
     fn contains(&self, value: f64) -> bool {
         self.min  <= value && value <= self.max
-    }
-}
-///
-/// Tread safe collection of xy
-pub struct PlotData {
-    length: AtomicUsize,
-    xy: RwLock<Vec<[f64; 2]>>,
-}
-impl PlotData {
-    ///
-    pub fn new(length: usize) -> Self {
-        Self {
-            length: AtomicUsize::new(length), 
-            xy: RwLock::new(vec![[0.0, 0.0]; length]),
-        }
-    }
-    ///
-    pub fn push(&self, xy: [f64; 2]) {
-        self.add(xy)
-    }
-    ///
-    pub fn add(&self, xy: [f64; 2]) {
-        self.xy.write().push(xy);
-        while self.xy.read().len() > self.length.load(Ordering::Acquire) {
-            self.xy.write().remove(0);
-        }
-    }
-    ///
-    pub fn update(&self, index: usize, xy: [f64; 2]) {
-        self.xy.write()[index] = xy;
-    }
-    pub fn get(&self, index: usize) -> [f64; 2] {
-        if index < self.xy.read().len() {
-            self.xy.read()[index]
-        } else {
-            panic!("'index out of bounds: the len is {} but the index is {}'", self.xy.read().len(), index);
-        }
-    }
-    ///
-    pub fn xy(&self) -> Vec<[f64; 2]> {
-        self.xy.read().clone()
-    }
-    /// 
-    pub fn len(&self) -> usize {
-        self.xy.read().len()
-    }
-    ///
-    pub fn setLen(&self, length: usize) {
-        self.length.store(length, Ordering::Release);
-    }
-    ///
-    pub fn clear(&self) {
-        self.xy.write().clear();
     }
 }

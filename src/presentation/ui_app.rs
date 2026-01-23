@@ -1,12 +1,16 @@
 use eframe::CreationContext;
-use egui_plot::{Line, Plot, Points};
-use std::sync::{Arc, atomic::Ordering};
+use egui_plot::{Line, Plot, PlotPoint, PlotPoints, Points};
+use sal_sync::sync::channel::Receiver;
+use std::{fmt::{Debug, Display}, sync::{Arc, atomic::Ordering}, time::{Duration, Instant}};
 use egui::{vec2, Color32, Align2, FontFamily, TextStyle, FontId};
-use crate::{fft::FftAnalysis, networking::UdpClient};
+use crate::{fft::FftAnalysis, networking::UdpClient, presentation::Xy};
 
 
 const UPLAY: &str = "\u{23F5}";
 const UPAUSE: &str = "\u{23F8}";
+
+const ZOOM_IN: &str = "\u{e800}";
+const ZOOM_OUT: &str = "\u{e801}";
 ///
 /// 
 pub struct UiApp {
@@ -14,16 +18,19 @@ pub struct UiApp {
     // pub analyzeFft: Arc<Mutex<AnalizeFft>>,
     pub udp_client: Arc<UdpClient>,
     pub fft: Arc<FftAnalysis>,
-    // renderDelay: Duration,
+    pub recv_xy: Receiver<u16>,
+    xy: Xy,
+    /// Samples per sec received in real
+    sps: Sps,
     real_input_min_y: f64,
     real_input_max_y: f64,
-    real_input_len: usize,
     // realInputAutoscroll: bool,
     real_input_autoscale_y: bool,
     fft_min_y: f64,
     fft_max_y: f64,
     fft_autoscale_y: bool,
     events: Vec<String>,
+    render_delay: Duration,
 }
 
 impl UiApp {
@@ -33,23 +40,29 @@ impl UiApp {
         // analyzeFft: Arc<Mutex<AnalizeFft>>,
         udp_client: Arc<UdpClient>,
         fft: Arc<FftAnalysis>,
-        // renderDelay: Duration,
+        render_delay: Duration,
     ) -> Self {
-        let fft_xy_len = fft.xy.len();
         Self::setup_custom_fonts(&cc.egui_ctx);
         Self::configure_text_styles(&cc.egui_ctx);
         Self {
             udp_client,
+            recv_xy: fft.xy(),
+            xy: Xy::new(
+                2048,
+                fft.f.load(),
+                fft.fft_buflen,
+            ),
             fft,
+            sps: Sps::new(),
             real_input_min_y: -100.0,
             real_input_max_y: 3100.0,
-            real_input_len: fft_xy_len,
             // realInputAutoscroll: true,
             real_input_autoscale_y: false,
             fft_min_y: -10.0,
             fft_max_y: 400.0,
             fft_autoscale_y: false,        
             events: vec![],
+            render_delay,
         }
     }
     ///
@@ -115,6 +128,12 @@ impl eframe::App for UiApp {
             }
             even = !even;
         }
+        let mut values = vec![];
+        while let Ok(val) = self.recv_xy.recv_timeout(Duration::from_millis(1)) {
+            values.push(val);
+            self.sps.add();
+        }
+        self.xy.enqueue(&values);
         let vp_size = ctx.input(|is| is.content_rect());
         // log::debug!("UiApp.update | ctx.input | vp_size: {:?}", vp_size);
         egui::Window::new("Events")
@@ -163,28 +182,30 @@ impl eframe::App for UiApp {
                         ),
                     );
                     ui.separator();
-                    if ui.add_sized([30., 30.], egui::Button::new("\u{e801}")).clicked() {
-                        self.real_input_len += self.real_input_len / 4;
-                        if self.real_input_len > self.fft.fft_buflen {
-                            self.real_input_len = self.fft.fft_buflen;
+                    if ui.add_sized([30., 30.], egui::Button::new(ZOOM_OUT)).clicked() {
+                        let len = self.xy.len() + self.xy.len() / 4;
+                        if len < self.fft.fft_buflen {
+                            self.xy.set_len(len);
+                        } else {
+                            self.xy.set_len(self.fft.fft_buflen);
                         }
-                        self.fft.xy.setLen(self.real_input_len);
                     }
                     ui.add_sized(
                         [100.0, 16.0], 
-                        egui::Label::new(format!(" length: {:.4} ns", (self.real_input_len as f64) * self.fft.delta.load() * 1.0e9)),
+                        egui::Label::new(format!(" length: {:.4} ns", (self.xy.len() as f64) * self.fft.delta.load() * 1.0e9)),
                     );
-                    if ui.add_sized([30., 30.], egui::Button::new("\u{e800}")).clicked() {
-                        self.real_input_len -= self.real_input_len / 4;
-                        if self.real_input_len < 10 {
-                            self.real_input_len = 10;
+                    if ui.add_sized([30., 30.], egui::Button::new(ZOOM_IN)).clicked() {
+                        let len = self.xy.len() - self.xy.len() / 4;
+                        if len > 10 {
+                            self.xy.set_len(len);
+                        } else {
+                            self.xy.set_len(10);
                         }
-                        self.fft.xy.setLen(self.real_input_len);
                     }
                     ui.separator();
                     // ui.label(format!(" t: {:?}", inputSignal.t));
                     // ui.label(format!(" phi: {:?}", inputSignal.phi));
-                    ui.label(format!("max length: {}", self.fft.xy.len()));
+                    ui.label(format!("max length: {}", self.xy.len()));
                     ui.separator();
                     ui.checkbox(&mut self.real_input_autoscale_y, "Autoscale Y");
                     // ui.label(format!("xyPoints length: {}", inputSig.xyPoints.len()));
@@ -206,6 +227,16 @@ impl eframe::App for UiApp {
                     if ui.button(if pause {UPLAY} else {UPAUSE}).clicked() {
                         self.fft.pause.store(!pause, Ordering::Release);
                     }
+                });
+                ui.separator();
+                ui.horizontal(|ui| {
+                    ui.add_sized(
+                        [200.0, 16.0], 
+                        egui::Label::new(
+                            format!("SPS: {}", self.sps),
+                        ),
+                    );
+                    ui.separator();
                 });
                 ui.separator();
                 let mut min = format!("{}", self.real_input_min_y);
@@ -257,7 +288,9 @@ impl eframe::App for UiApp {
                     plot_ui.points(
                         Points::new(
                             "input_signal",
-                            self.fft.xy.xy()
+                            PlotPoints::from_iter(
+                                self.xy.values(), //.iter().map(|p| PlotPoint::from(p)),
+                            )
                         )
                         .color(Color32::LIGHT_GREEN)
                         // .radius(2.0)
@@ -266,7 +299,7 @@ impl eframe::App for UiApp {
                     plot_ui.line(
                         Line::new(
                             "",
-                            self.fft.xy.xy()
+                            self.xy.values()
                         ).color(Color32::GRAY),
                     );                        
                 });
@@ -402,8 +435,10 @@ impl eframe::App for UiApp {
         //         )
         //     });
         // });
-        // std::thread::sleep(self.renderDelay);
+        std::thread::sleep(self.render_delay);
         ctx.request_repaint();
+        // if self.fft.xy.is_changed() {
+        // }
     }
 }
 
@@ -419,5 +454,53 @@ impl ExtendedColors for Color32 {
     fn with_opacity(&self, opacity: u8) -> Self {
         let [r, g, b, _] = self.to_array();
         Color32::from_rgba_premultiplied(r, g, b, opacity)
+    }
+}
+
+///
+/// Average Samples per sec
+pub struct Sps {
+    t: Option<Instant>,
+    count: usize,
+    average: f64,
+}
+impl Sps {
+    pub fn new() -> Self {
+        Self {
+            t: None,
+            count: 0,
+            average: 0.0,
+        }
+    }
+    ///
+    /// 
+    pub fn add(&mut self) {
+        let elapsed = match self.t {
+            Some(t) => t.elapsed(),
+            None => {
+                let t = Instant::now();
+                let elapsed = t.elapsed();
+                self.t = Some(t);
+                elapsed
+            },
+        };
+        self.count += 1;
+        self.average = self.count as f64 / elapsed.as_secs_f64()
+    }
+    ///
+    /// Returns average SPS value
+    pub fn average(&self) -> f64 {
+        self.average
+    }
+}
+
+impl Debug for Sps {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:.3}", self.average)
+    }
+}
+impl Display for Sps {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:.3}", self.average)
     }
 }

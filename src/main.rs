@@ -14,9 +14,9 @@ use debugging::session::debug_session::{DebugSession, LogLevel};
 // use eframe::{EventLoopBuilder, UserEvent};
 use sal_core::dbg::Dbg;
 use sal_sync::{services::{Service, Services, conf::{ConfTree, ServicesConf}, entity::Name}, thread_pool::ThreadPool};
-use std::{error::Error, f64::consts::PI, sync::Arc};
+use std::{error::Error, f64::consts::PI, sync::Arc, time::Duration};
 use crate::{
-    ds::DsServer, fft::FftAnalysis, networking::{FakeUdpServer, FakeUdpServerConfig, UdpClient, UdpClientConf}, presentation::ui_app::UiApp
+    ds::DsServer, fft::FftAnalysis, networking::{FakeUdpServer, FakeUdpServerConfig, UdpClient, UdpClientConf}, presentation::UiApp
 };
 
 ///
@@ -121,6 +121,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 cc,
                 udp_client,
                 fft_analysis,
+                Duration::from_secs_f64(1.0 / 60.0),
             ),
         )))    
     )?;    
