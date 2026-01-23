@@ -6,10 +6,8 @@ service UdpClient:
     cycle: 1 ms                         # operating cycle time of the device
     reconnect: 3000 ms                  # reconnect timeout when connection is lost
     protocol: 'udp-raw'
-    # local-address: 192.168.88.32:15180
+    # local-address: 192.168.88.36:15180
     # remote-address: 192.168.88.173:15180
-    # local-address: 192.168.88.32:15180
-    # remote-address: 192.168.88.42:15180
     local-address: 127.0.0.1:15180
     remote-address: 127.0.0.1:15181
     mtu: 4096

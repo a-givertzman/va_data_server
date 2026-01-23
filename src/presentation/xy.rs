@@ -5,8 +5,9 @@ use sal_core::dbg::Dbg;
 use crate::{fft::AtomicFloat, presentation::PlotData};
 
 pub struct Xy {
-    pub f: f64,
+    pub sampl_freq: f64,
     pub delta: f64,
+    pub sampling_period: f64,
     pub t: Arc<AtomicFloat<f64>>,
     xy: PlotData,
     dbg: Dbg,
@@ -19,8 +20,9 @@ impl Xy {
         let sampling_period = 1.0 / sampl_freq;
         let delta = sampling_period / (fft_buflen as f64);
         Self {
-            f: sampl_freq,
+            sampl_freq,
             delta,
+            sampling_period,
             t: Arc::new(AtomicFloat::new(0.0)),
             xy: PlotData::new(len),
             dbg: Dbg::new("", "Xy"),
@@ -45,7 +47,7 @@ impl Xy {
             // let i = complex.len();
             let t = self.t.load();
             self.xy.add(&[t * 1.0e6, *val as f64]);
-            self.t.store(t + self.delta);
+            self.t.store(t + self.sampling_period);
         }
         log::trace!("{}.enqueue | Done", self.dbg);
     }

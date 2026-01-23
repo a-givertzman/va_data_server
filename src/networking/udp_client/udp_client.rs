@@ -27,17 +27,17 @@ enum State {
 /// 
 /// - **Message structure**
 /// 
-///     |Field name:   | FUN | ADDR | TYPE | COUNT | DATA        |
-///     |---           | --- | ---- | ---- | ----- | ----        |
-///     |Data type:    | u8  | u8   | u8   | u32   | [T; COUNT]  | 
-///     |Example value:| 22  | 0    | 16   | 512   | [u16; 512]  |
+///     |Field name:   | FUN | CHANNELS | TYPE | COUNT | DATA        |
+///     |---           | --- | ----     | ---- | ----- | ----        |
+///     |Data type:    | u8  | u8       | u8   | u32   | [T; COUNT]  | 
+///     |Example value:| 22  | 0        | 16   | 512   | [u16; 512]  |
 ///     
 ///     - `FUN` Functional byte, 
 ///         - `0x22` - Initialization message
 ///         - `0x02` - Data message
 ///         - `0x05` - Command message
 ///         - `0x07` - Error message
-///     - `ADDR` = 0...255 - Index of the input channel (0 - first input channel)
+///     - `CHANNELS` = 0...255 - Index of the input channel (0 - first input channel)
 ///     - `TYPE` - type of values in the array in `DATA` field
 ///         - 8 - u8, 1 byte unsigned integer value
 ///         - 9 - i8, 1 byte signed integer value
@@ -46,7 +46,7 @@ enum State {
 ///         - 32 - u32, 4 byte unsigned integer value
 ///         - 33 - i32, 4 byte signed integer value
 ///         - 132 - f32, 4 bytes float value
-///     - `COUNT` - length of the array in the `DATA` field, number of values of type specified in the `TYPE` field
+///     - `COUNT` - length of the `DATA` field in bytes
 ///     - `DATA` - array of values of type specified in the `TYPE` field
 /// 
 /// - **Error codes**
@@ -126,9 +126,7 @@ impl UdpClient {
                     Ok(typ) => {
                         // log::debug!("{dbg}.parse | channels: {}, count: {} values of type {}", channels, count, typ);
                         // log::debug!("{dbg}.parse | channels: {} type: {} count: {}  |  {:?}", channels, typ, count, &buf[UdpClient::HEAD_LEN..(if buf.len() < 10 {buf.len()} else {10})]);
-                        let len = count * typ.size();
-                        // let len = count;
-                        match buf.get(UdpClient::HEAD_LEN..(UdpClient::HEAD_LEN + len)) {
+                        match buf.get(UdpClient::HEAD_LEN..(UdpClient::HEAD_LEN + count)) {
                             Some(bytes) => {
                                 // let bytes: &Vec<u8> = bytes;
                                 // log::trace!("{}.parse | bytes: {:?}", dbg, bytes);
@@ -154,7 +152,7 @@ impl UdpClient {
                                 }
                             }
                             None => {
-                                log::error!("{dbg}.parse | Wrong message length: {}, expected {}", buf.len(), UdpClient::HEAD_LEN + len);
+                                log::error!("{dbg}.parse | Wrong message length: {}, expected {}", buf.len(), UdpClient::HEAD_LEN + count);
                             }
                         }
                     }

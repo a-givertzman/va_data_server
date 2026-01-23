@@ -38,8 +38,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Angular frequency of the test signal, rad/s
     let ω_amp: Vec<(f64, f64)> = freq.iter().enumerate().map(|(i, f)| (2.0 * PI * *f as f64, amp[i] * 0.5)).collect();
     // ===================== Configure Sampling & FFT analizer =====================
-    let sampl_freq = 524_288;   // 262_144;     131_072;    65_536;    666_624;             // Sampling Frequency of the ADC, Hz
-    let fft_buflen = 524_288;   // 262_144;     131_072;    65_536;    666_624;             // FFT calculation window
+    let sampl_freq = 666_624;   // 524_288   // 262_144;     131_072;    65_536;    ;             // Sampling Frequency of the ADC, Hz
+    let fft_buflen = 666_624;   // 524_288   // 262_144;     131_072;    65_536;    ;             // FFT calculation window
     // =============================================================================
     log::info!("{dbg} | Test signal:");
     for (i, f) in freq.iter().enumerate() {
@@ -114,6 +114,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             // fullscreen: true,
             // maximized: true,
             viewport: egui::ViewportBuilder::default().with_inner_size([1920.0, 840.0]),
+            hardware_acceleration: eframe::HardwareAcceleration::Required,
+            run_and_return: false,
             ..Default::default()
         }, 
         Box::new(|cc| Ok(Box::new(
@@ -121,7 +123,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 cc,
                 udp_client,
                 fft_analysis,
-                Duration::from_secs_f64(1.0 / 60.0),
+                Duration::from_secs_f64(1.0 / 120.0),
             ),
         )))    
     )?;    
